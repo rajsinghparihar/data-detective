@@ -18,6 +18,7 @@ support_directory = "./temp/support/"
 temp_zip_filepath = "./temp/uploaded_files/files.zip"
 extracted_data_dir = "./temp/extracted_data"
 extracted_data_filepath = "./temp/extracted_data"
+invoice_csv_filepath = "./temp/invoice.csv"
 
 
 @app.route("/", methods=["GET"])
@@ -59,7 +60,8 @@ def process_docs():
     os.mkdir(os.path.dirname(temp_zip_filepath))
     shutil.rmtree(extracted_data_dir)
     os.mkdir(extracted_data_dir)
-    os.remove(extracted_data_dir + ".zip")
+    if os.path.exists(extracted_data_dir + ".zip"):
+        os.remove(extracted_data_dir + ".zip")
     if "files" not in request.files:
         return jsonify({"error": "No zip file uploaded!"})
 
@@ -80,6 +82,22 @@ def process_docs():
                 "output_filepath": extracted_data_filepath + ".zip",
             }
         )
+
+
+@app.route("/invoice/summarize_invoice", methods=["POST"])
+def summarize_invoice_pdf():
+    if "invoice" not in request.files:
+        return jsonify({"error": "No pdf uploaded!"})
+
+    invoice_fs = request.files["invoice"]
+
+    invoice_fs.save(temp_filepath)
+    summarizer = Summarizer(filepath=temp_filepath)
+    csv_text = summarizer.summarize()
+    with open(invoice_csv_filepath, "w+") as f:
+        f.write(csv_text)
+
+    return jsonify({"output_filepath": invoice_csv_filepath})
 
 
 @app.route("/check_duplicates", methods=["GET"])

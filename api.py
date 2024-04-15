@@ -125,7 +125,7 @@ class Summarizer(TextExtractor):
 
     def summarize(self):
         response = self.query_engine.query(
-            "Using the information in the provided documents, What is the purchase order number (sometimes also called work order number), the invoice number (sometimes also called debit note number), the invoice amount, the invoice currency, the invoice description or details, the Jio/Reliance entity name, the Vendor name, the Vendor country and invoice date? Please format the response in bullet points."
+            "Using the information in the provided documents, What is the purchase order number (sometimes also called work order number or WO No.), the invoice number (sometimes also called debit note number), the invoice amount, the invoice currency, the invoice description or details, the Jio/Reliance entity name, the Vendor name, the Vendor country and invoice date? Please format the response in CSV format with these descriptors as columns and their values as records. In the records, make sure to only include the values of the descriptors without any descriptor names like (WO No. or Wo Date etc.)"
         )
         return response.response
 

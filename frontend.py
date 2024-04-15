@@ -14,77 +14,104 @@ def show_download_button(output_path, label, filename):
         )
 
 
-st.title("Document Processor")
-st.write("Upload a zip file containing all the documents")
-uploaded_zip_file = st.file_uploader("Choose a zip file", type=["zip"])
-if uploaded_zip_file is not None and st.button("Process"):
-    with open(uploaded_zip_file.name, "wb") as f:
-        f.write(uploaded_zip_file.getbuffer())
-    files = {
-        "files": (
-            uploaded_zip_file.name,
-            uploaded_zip_file.read(),
-        )
-    }
-    with st.status("Extracting data...") as status:
-        response = requests.post(
-            BACKEND_URL + "process_documents",
-            files=files,
-        )
-        status.update(
-            label="Data Extracted Successfully!", state="complete", expanded=True
-        )
-        result = response.json()
-        if "error" in result:
-            st.error(result["error"])
-        else:
-            st.success("Prediction complete!")
-            output_path = result["output_filepath"]
-            show_download_button(
-                output_path=output_path,
-                label="Download Zipped Archive",
-                filename="extracted_data.zip",
+@st.experimental_fragment
+def invoice_processing():
+    st.title("Invoice Analysis")
+    st.write("Upload a invoice pdf to get extracted info")
+    uploaded_pdf_file = st.file_uploader("Choose a file", type=["pdf"])
+    if uploaded_pdf_file is not None and st.button("Process Invoice"):
+        files = {
+            "invoice": (
+                uploaded_pdf_file.name,
+                uploaded_pdf_file.read(),
             )
-
-    with st.status("Checking Duplicates...") as status:
-        response = requests.get(BACKEND_URL + "check_duplicates")
-        status.update(
-            label="Duplicates checking completed!", state="complete", expanded=True
-        )
-        result = response.json()
-        print(result)
-        if "error" in result:
-            st.error(result["error"])
-        else:
-            if "output_filepath" in result:
-                st.success("Prediction complete!")
+        }
+        with st.status("Summarizing Invoice...") as status:
+            response = requests.post(
+                BACKEND_URL + "/invoice/summarize_invoice", files=files
+            )
+            result = response.json()
+            if "error" in result:
+                status.update(
+                    label="Invoice Summarization Failed!",
+                    state="error",
+                    expanded=True,
+                )
+                st.error(result["error"])
+            else:
+                status.update(
+                    label="Invoice Summarization completed!",
+                    state="complete",
+                    expanded=True,
+                )
                 output_path = result["output_filepath"]
                 show_download_button(
                     output_path=output_path,
-                    label="Download Duplicates CSV file",
-                    filename="duplicates.csv",
+                    label="Download Invoice Info. CSV file",
+                    filename=uploaded_pdf_file.name.replace("pdf", "csv"),
                 )
-                st.markdown(result["response"])
-            else:
-                st.success("Prediction complete!")
-                st.markdown(result["response"])
 
-    with st.status("Summarizing Invoices...") as status:
-        response = requests.get(BACKEND_URL + "summarize_invoice")
 
-        result = response.json()
-        if "error" in result:
-            status.update(
-                label="Invoice Summarization Failed!",
-                state="error",
-                expanded=True,
+@st.experimental_fragment
+def duplicate_detection():
+    st.title("Duplicate Analysis")
+    st.write("Upload a zip file containing all the documents")
+    uploaded_zip_file = st.file_uploader("Choose a zip file", type=["zip"])
+    if uploaded_zip_file is not None and st.button("Process"):
+        files = {
+            "files": (
+                uploaded_zip_file.name,
+                uploaded_zip_file.read(),
             )
-            st.error(result["error"])
-        else:
+        }
+        with st.status("Extracting data...") as status:
+            response = requests.post(
+                BACKEND_URL + "process_documents",
+                files=files,
+            )
             status.update(
-                label="Invoice Summarization completed!",
+                label="Data Extracted Successfully!",
                 state="complete",
                 expanded=True,
             )
-            st.success("Prediction complete!")
-            st.markdown(result["response"])
+            result = response.json()
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                output_path = result["output_filepath"]
+                show_download_button(
+                    output_path=output_path,
+                    label="Download Zipped Archive",
+                    filename="extracted_data.zip",
+                )
+
+        with st.status("Checking Duplicates...") as status:
+            response = requests.get(BACKEND_URL + "check_duplicates")
+            status.update(
+                label="Duplicates checking completed!",
+                state="complete",
+                expanded=True,
+            )
+            result = response.json()
+            if "error" in result:
+                st.error(result["error"])
+            else:
+                if "output_filepath" in result:
+                    output_path = result["output_filepath"]
+                    show_download_button(
+                        output_path=output_path,
+                        label="Download Duplicates CSV file",
+                        filename="duplicates.csv",
+                    )
+                    st.markdown(result["response"])
+                else:
+                    st.markdown(result["response"])
+
+
+st.set_page_config(layout="wide")
+# st.title("Document Processor")
+invoice_summary_col, duplicate_detection_col = st.columns(2)
+with invoice_summary_col:
+    invoice_processing()
+with duplicate_detection_col:
+    duplicate_detection()
