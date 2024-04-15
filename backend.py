@@ -4,6 +4,7 @@ from transformers import AutoTokenizer
 from flask import Flask, request, jsonify
 import shutil
 import os
+import pandas as pd
 
 app = Flask(__name__)
 llm_module = LLMUtils()
@@ -97,12 +98,15 @@ def check_duplicates():
     )
 
     ret, sap_ids = duplicate_checker.check_duplicates()
+    sap_ids_df = pd.DataFrame({"SAP ID": sap_ids})
+    duplicates_filepath = "./temp/duplicates_dir/duplicates.csv"
+    sap_ids_df.to_csv(duplicates_filepath, index=False)
     if ret:
-        response = f"### Annexure contains duplicate records!\n- SAP IDs: {sap_ids}"
+        response = "### Annexure contains duplicate records!"
+        return jsonify({"response": response, "output_filepath": duplicates_filepath})
     else:
         response = "### Annexure Contains No Duplicates!"
-
-    return jsonify({"response": response})
+        return jsonify({"response": response})
 
 
 if __name__ == "__main__":

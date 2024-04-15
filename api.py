@@ -27,8 +27,8 @@ import shutil
 class TextExtractor:
     def __init__(self, filepath) -> None:
         self._filepath = filepath
-        self._text_filepath = "./invoices/invoice_text.txt"
-        self._header_filepath = "./invoices/vendor_information.txt"
+        self._text_filepath = "./temp/invoice_text.txt"
+        self._header_filepath = "./temp/vendor_information.txt"
         self.ppocr_obj = ppocr(
             use_angle_cls=True, lang="en", use_gpu=True, verbose=False
         )
@@ -45,7 +45,7 @@ class TextExtractor:
         return True
 
     def extract_and_save_txt(self):
-        text_file = open(self._text_filepath, "w")
+        text_file = open(self._text_filepath, "w+")
         if not self.is_file_readable():
             ocr_text = []
             pages = convert_from_path(self._filepath)
@@ -70,7 +70,7 @@ class TextExtractor:
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         img = np.array(img)
         header_text = pytesseract.image_to_string(img[:header_y, :, :])
-        with open(self._header_filepath, "w") as header_file:
+        with open(self._header_filepath, "w+") as header_file:
             header_file.write(header_text.strip())
 
 

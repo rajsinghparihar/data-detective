@@ -5,12 +5,12 @@ BACKEND_URL = "http://127.0.0.1:5000/"
 
 
 @st.experimental_fragment
-def show_download_button(output_path):
+def show_download_button(output_path, label, filename):
     with open(output_path, "rb") as zip_file_bytes:
         st.download_button(
-            label="Download Zipped Archive",
+            label=label,
             data=zip_file_bytes,
-            file_name="extracted_data.zip",
+            file_name=filename,
         )
 
 
@@ -40,7 +40,11 @@ if uploaded_zip_file is not None and st.button("Process"):
         else:
             st.success("Prediction complete!")
             output_path = result["output_filepath"]
-            show_download_button(output_path=output_path)
+            show_download_button(
+                output_path=output_path,
+                label="Download Zipped Archive",
+                filename="extracted_data.zip",
+            )
 
     with st.status("Checking Duplicates...") as status:
         response = requests.get(BACKEND_URL + "check_duplicates")
@@ -48,11 +52,22 @@ if uploaded_zip_file is not None and st.button("Process"):
             label="Duplicates checking completed!", state="complete", expanded=True
         )
         result = response.json()
+        print(result)
         if "error" in result:
             st.error(result["error"])
         else:
-            st.success("Prediction complete!")
-            st.markdown(result["response"])
+            if "output_filepath" in result:
+                st.success("Prediction complete!")
+                output_path = result["output_filepath"]
+                show_download_button(
+                    output_path=output_path,
+                    label="Download Duplicates CSV file",
+                    filename="duplicates.csv",
+                )
+                st.markdown(result["response"])
+            else:
+                st.success("Prediction complete!")
+                st.markdown(result["response"])
 
     with st.status("Summarizing Invoices...") as status:
         response = requests.get(BACKEND_URL + "summarize_invoice")
