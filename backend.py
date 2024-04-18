@@ -1,4 +1,10 @@
-from api import Summarizer, LLMUtils, DuplicateChecker, DocumentsProcessor
+from api import (
+    Summarizer,
+    LLMUtils,
+    DuplicateChecker,
+    DocumentsProcessor,
+    TabularDataExtractor,
+)
 from llama_index import set_global_tokenizer, set_global_service_context
 from transformers import AutoTokenizer
 from flask import Flask, request, jsonify
@@ -19,6 +25,11 @@ temp_zip_filepath = "./temp/uploaded_files/files.zip"
 extracted_data_dir = "./temp/extracted_data"
 extracted_data_filepath = "./temp/extracted_data"
 invoice_csv_filepath = "./temp/invoice.csv"
+
+summarized_pdf_csv_filepath = "./v2/file.csv"
+extracted_data_dir_v2 = "./v2/extracted_data"
+uploaded_filepath = "./v2/file.pdf"
+db_dir = "./v2/db_dir"
 
 
 @app.route("/", methods=["GET"])
@@ -86,7 +97,7 @@ def process_docs():
 
 @app.route("/invoice/summarize_invoice", methods=["POST"])
 def summarize_invoice_pdf():
-    if "invoice" not in request.files:
+    if "files" not in request.files:
         return jsonify({"error": "No pdf uploaded!"})
 
     invoice_fs = request.files["invoice"]
@@ -98,6 +109,31 @@ def summarize_invoice_pdf():
         f.write(csv_text)
 
     return jsonify({"output_filepath": invoice_csv_filepath})
+
+
+@app.route("/v2/summarize_data", methods=["POST"])
+def summarize_document():
+    request_data = request.get_json()
+    filetype = request_data["filetype"]
+    summarizer = Summarizer(filepath=uploaded_filepath, filetype=filetype)
+    csv_text = summarizer.summarize()
+    with open(summarized_pdf_csv_filepath, "w+") as f:
+        f.write(csv_text)
+
+    return jsonify({"output_filepath": summarized_pdf_csv_filepath})
+
+
+@app.route("/v2/extract_data", methods=["POST"])
+def extract_data():
+    if "files" not in request.files:
+        return jsonify({"error": "No pdf uploaded!"})
+
+    document_fs = request.files["files"]
+    document_fs.save(uploaded_filepath)
+
+    extractor = TabularDataExtractor(filepath=uploaded_filepath)
+    output_filepath = extractor.extract_and_save_data()
+    return jsonify({"output_filepath": output_filepath})
 
 
 @app.route("/check_duplicates", methods=["GET"])

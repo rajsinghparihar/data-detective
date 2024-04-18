@@ -22,6 +22,7 @@ from img2table.document import PDF
 import os
 import zipfile
 import shutil
+import json
 
 
 class TextExtractor:
@@ -44,17 +45,22 @@ class TextExtractor:
             return False
         return True
 
-    def extract_and_save_txt(self):
+    def extract_and_save_txt(self, filetype_keyword: str):
+        """
+        - filetype_keyword: str
+            - examples: ["Invoice", "Customer", etc.]
+            only used when file is not readable
+            and values must be extracted using ocr
+        """
         text_file = open(self._text_filepath, "w+")
         if not self.is_file_readable():
             ocr_text = []
             pages = convert_from_path(self._filepath)
             for page in pages:
-                # text = pytesseract.image_to_string(page)
                 image = np.array(page)
                 result = self.ppocr_obj.ocr(img=image, cls=True)[0]
                 text = "\n".join([line[1][0] for line in result])
-                if text.lower().__contains__("invoice"):
+                if text.lower().__contains__(filetype_keyword.lower()):
                     ocr_text.append(text)
                     break
             text_file.writelines(ocr_text)
@@ -97,9 +103,102 @@ class LLMUtils:
         )
 
 
+class ConfigManager:
+    def __init__(self) -> None:
+        self.config_filepath = "./temp/config.json"
+        self.config_data = self.read_config()
+
+    def read_config(self):
+        try:
+            with open(self.config_filepath, "r") as file:
+                config_data = json.load(file)
+            return config_data
+        except FileNotFoundError:
+            print("Config file not found.")
+            return None
+        except json.JSONDecodeError:
+            print("Error decoding JSON in config file.")
+            return None
+
+    def write_config(self, config_data):
+        self.config_data = config_data
+        with open(self.config_filepath, "w") as file:
+            json.dump(config_data, file, indent=4)
+
+    def update_config(self, filetype, fields):
+        # Check if the type already exists
+        for config in self.config_data["configs"]:
+            if config["type"] == filetype:
+                # Update existing fields
+                existing_fields = set(config["fields"])
+                fields = set(fields)
+                config["fields"] = list(existing_fields.union(fields))
+                return self.config_data
+        # If type does not exist, add new configuration
+        self.config_data["configs"].append({"type": filetype, "fields": fields})
+        return self.config_data
+
+    def update_config_with_new_fields(self, filetype, fields):
+        self.config_data = self.read_config()
+        if self.config_data is None:
+            return
+        self.config_data = self.update_config(filetype, fields)
+        self.write_config(self.config_data)
+
+    def get_fields_from_filetype(self, filetype):
+        if self.config_data is None:
+            self.config_data = self.read_config()
+        configs = self.config_data["configs"]
+        for config in configs:
+            if config["type"] == filetype:
+                return config["fields"]
+        print("No config found for this filetype.")
+        return []
+
+    def get_db_table_info(self):
+        document_types = []
+        for data in self.config_data["configs"]:
+            document_types.append((data["type"].title(), data["fields"]))
+        return document_types
+
+
+class PromptManager:
+    def __init__(self) -> None:
+        self.prompt_config_filepath = "./temp/prompts.json"
+        self.prompts = self.read_config()
+
+    def read_config(self) -> dict:
+        try:
+            with open(self.prompt_config_filepath, "r") as file:
+                config_data = json.load(file)
+            return config_data
+        except FileNotFoundError:
+            print("Prompt Config file not found.")
+            return None
+        except json.JSONDecodeError:
+            print("Error decoding JSON in config file.")
+            return None
+
+    def get_general_prompt(self) -> str:
+        return self.prompts["general_prompt"]
+
+
 class Summarizer(TextExtractor):
-    def __init__(self, filepath) -> None:
+    def __init__(self, filepath: str, filetype: str) -> None:
+        """
+        - filetype: str
+            - examples: ["Invoice", "CAF", etc.]
+        used to select correct fields to summarize from configfile.
+        """
         super().__init__(filepath)
+        self.prompt_manager = PromptManager()
+        self.prompt = self.prompt_manager.get_general_prompt()
+
+        self.config_manager = ConfigManager()
+        # always using filetype.lower() assuming that keys in the config file will always be lowercase strings
+        self.fields = self.config_manager.get_fields_from_filetype(
+            filetype=filetype.lower()
+        )
         is_file_readable = self.is_file_readable()
         if is_file_readable:
             self.extract_header_ocr()
@@ -107,7 +206,7 @@ class Summarizer(TextExtractor):
                 input_files=[filepath, self._header_filepath]
             ).load_data()
         else:
-            self.extract_and_save_txt()
+            self.extract_and_save_txt(filetype_keyword=filetype.lower())
             documents = SimpleDirectoryReader(
                 input_files=[self._text_filepath]
             ).load_data()
@@ -125,7 +224,7 @@ class Summarizer(TextExtractor):
 
     def summarize(self):
         response = self.query_engine.query(
-            "Using the information in the provided documents, What is the purchase order number (sometimes also called work order number or WO No.), the invoice number (sometimes also called debit note number), the invoice amount, the invoice currency, the invoice description or details, the Jio/Reliance entity name, the Vendor name, the Vendor country and invoice date? Please format the response in CSV format with these descriptors as columns and their values as records. In the records, make sure to only include the values of the descriptors without any descriptor names like (WO No. or Wo Date etc.)"
+            self.prompt.format(fields=", ".join(self.fields))
         )
         return response.response
 
@@ -245,3 +344,22 @@ class DuplicateChecker:
         duplicate_sap_ids = self.find_duplicates(total_sap_ids)
 
         return ret, duplicate_sap_ids
+
+
+# extracts tabular data from single pdf and saves it to single xlsx file
+class TabularDataExtractor:
+    def __init__(self, filepath: str) -> None:
+        self.ocr = PaddleOCR(lang="en", kw={"use_gpu": True})
+        self.filepath = filepath
+
+    def extract_and_save_data(self) -> None:
+        doc = PDF(src=self.filepath)
+        output_filepath = self.filepath.replace("pdf", "xlsx")
+        doc.to_xlsx(
+            dest=output_filepath,
+            ocr=self.ocr,
+            implicit_rows=False,
+            borderless_tables=False,
+            min_confidence=50,
+        )
+        return output_filepath
