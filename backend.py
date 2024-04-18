@@ -33,7 +33,7 @@ extracted_data_dir_v2 = "./v2/extracted_data"
 uploaded_filepath = "./v2/file.pdf"
 db_dir = "./v2/db_dir"
 
-for dir in [files_dir,extracted_data_dir_v2,db_dir]:
+for dir in [files_dir, extracted_data_dir_v2, db_dir]:
     if not os.path.exists(dir):
         os.mkdir(dir)
 
@@ -115,6 +115,12 @@ def summarize_invoice_pdf():
         f.write(csv_text)
 
     return jsonify({"output_filepath": invoice_csv_filepath})
+
+
+# Health Check API
+@app.route("/v2/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "healthy"})
 
 
 @app.route("/v2/summarize_data", methods=["POST"])
