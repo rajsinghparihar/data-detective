@@ -75,7 +75,8 @@ class TextExtractor:
         pix = page.get_pixmap(matrix="RGB")
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         img = np.array(img)
-        header_text = pytesseract.image_to_string(img[:header_y, :, :])
+        header_result = self.ppocr_obj.ocr(img=img[:header_y, :, :], cls=True)[0]
+        header_text = "\n".join([line[1][0] for line in header_result])
         with open(self._header_filepath, "w+") as header_file:
             header_file.write(header_text.strip())
 
