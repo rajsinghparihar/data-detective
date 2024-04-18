@@ -12,7 +12,6 @@ from llama_index.llms.llama_utils import (
 from llama_index.embeddings import HuggingFaceEmbedding
 from pdf2image import convert_from_path
 import fitz
-import pytesseract
 from PIL import Image
 import numpy as np
 import pandas as pd
@@ -92,7 +91,7 @@ class LLMUtils:
 
     def load_llm(self):
         return LlamaCPP(
-            model_path="../models/laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf",
+            model_path="../models/phi-2.Q2_K.gguf",
             temperature=0,
             max_new_tokens=512,
             context_window=3900,
