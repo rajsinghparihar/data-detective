@@ -2,7 +2,7 @@ PyMuPDF
 Flask==3.0.3
 img2table==1.2.11
 llama-index==0.9.25.post1
-llama_cpp_python==0.2.27
+llama_cpp_python
 numpy==1.26.4
 paddlepaddle
 paddleocr
@@ -13,3 +13,5 @@ pytesseract==0.3.10
 Requests==2.31.0
 streamlit==1.33.0
 transformers==4.35.2
+torch
+torchvision

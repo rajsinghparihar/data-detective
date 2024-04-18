@@ -26,10 +26,16 @@ extracted_data_dir = "./temp/extracted_data"
 extracted_data_filepath = "./temp/extracted_data"
 invoice_csv_filepath = "./temp/invoice.csv"
 
+files_dir = "./v2"
+
 summarized_pdf_csv_filepath = "./v2/file.csv"
 extracted_data_dir_v2 = "./v2/extracted_data"
 uploaded_filepath = "./v2/file.pdf"
 db_dir = "./v2/db_dir"
+
+for dir in [files_dir,extracted_data_dir_v2,db_dir]:
+    if not os.path.exists(dir):
+        os.mkdir(dir)
 
 
 @app.route("/", methods=["GET"])
