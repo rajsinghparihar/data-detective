@@ -82,8 +82,11 @@ class TextExtractor:
 
 class LLMUtils:
     def __init__(self) -> None:
-        self.models_dir = os.getenv('MODELS_DIR')
-        self.model_path = os.path.join(self.models_dir, 'laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf')        
+        self.models_dir = "../models/"
+        # self.models_dir = os.getenv("MODELS_DIR")
+        self.model_path = os.path.join(
+            self.models_dir, "laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf"
+        )
         self._llm = self.load_llm()
         self._embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-base-en-v1.5")
         self.service_context = ServiceContext.from_defaults(
@@ -223,6 +226,15 @@ class Summarizer(TextExtractor):
         self.query_engine = self.index.as_query_engine(
             response_mode="tree_summarize", use_async=True, streaming=False
         )
+
+    def csv_formatting(self, csv_file_path):
+        df = pd.read_csv(csv_file_path)
+        if df.shape[0] == 0:
+            df.loc[1, :] = df.columns.values
+            df.columns = self.fields
+            df.to_csv(csv_file_path, index=False)
+        else:
+            df.to_csv(csv_file_path, index=False)
 
     def summarize(self):
         response = self.query_engine.query(

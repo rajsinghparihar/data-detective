@@ -113,6 +113,7 @@ def get_entities(file_path, document_type):
     with open(output_filepath, "w+") as f:
         f.write(csv_text)
     output_filepath = os.path.abspath(output_filepath)
+    summarizer.csv_formatting(csv_file_path=output_filepath)
     return ProcessResponse(response="success", output_filepath=output_filepath)
 
 
