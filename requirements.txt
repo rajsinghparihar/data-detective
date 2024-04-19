@@ -15,3 +15,5 @@ transformers==4.35.2
 torch
 torchvision
 pypdf
+fastapi
+uvicorn[standard]
