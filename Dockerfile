@@ -20,10 +20,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8501
 
 # Define an environment variable for the models folder path
-ENV MODELS_DIR /models
+ENV DATA_DIR /data
 
 # Mount the models folder from the host into the container
-VOLUME ["$MODELS_DIR"]
+VOLUME ["$DATA_DIR"]
 
 # Run app.py when the container launches
 CMD ["python", "-m", "uvicorn", "fast-api-server:app", "--reload", "--host", "0.0.0.0", "--port", "8501"]

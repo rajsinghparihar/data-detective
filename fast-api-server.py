@@ -13,6 +13,11 @@ import requests
 import re
 import shutil
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+
 app = FastAPI()
 llm_module = LLMUtils()
 set_global_tokenizer(
@@ -20,9 +25,9 @@ set_global_tokenizer(
 )
 set_global_service_context(service_context=llm_module.service_context)
 
-data_dir = "./data/"
-
-
+DATA_DIR = os.getenv('DATA_DIR')
+data_dir =os.path.join(DATA_DIR, 'outputs/')  
+print(data_dir)
 class Document(BaseModel):
     file_path: str
     document_type: Optional[str] = ""
@@ -109,7 +114,7 @@ def get_entities(file_path, document_type):
     local_filepath = os.path.join(data_dir, filename)
     summarizer = Summarizer(filepath=local_filepath, filetype=document_type)
     csv_text = summarizer.summarize()
-    output_filepath = os.path.join(data_dir, filename.replace("pdf", "csv"))
+    output_filepath = os.path.join(data_dir, filename.replace(".pdf", ".csv"))
     with open(output_filepath, "w+") as f:
         f.write(csv_text)
     output_filepath = os.path.abspath(output_filepath)

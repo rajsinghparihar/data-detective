@@ -49,7 +49,7 @@ def invoice_processing():
                 show_download_button(
                     output_path=output_path,
                     label="Download Invoice Info. CSV file",
-                    filename=filename.replace("pdf", "csv"),
+                    filename=filename.replace(".pdf", ".csv"),
                 )
 
 
@@ -149,7 +149,7 @@ if uploaded_pdf_file is not None and st.button("Process"):
             show_download_button(
                 output_path=output_path,
                 label="Download raw data",
-                filename=uploaded_pdf_file.name.replace("pdf", "xlsx"),
+                filename=uploaded_pdf_file.name.replace(".pdf", ".xlsx"),
             )
     with st.status("Summarizing File...") as status:
         response = requests.post(
@@ -173,5 +173,5 @@ if uploaded_pdf_file is not None and st.button("Process"):
             show_download_button(
                 output_path=output_path,
                 label="Download formatted data",
-                filename=filename.replace("pdf", "csv"),
+                filename=filename.replace(".pdf", ".csv"),
             )

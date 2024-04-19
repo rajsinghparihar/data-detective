@@ -17,3 +17,4 @@ torchvision
 pypdf
 fastapi
 uvicorn[standard]
+python-dotenv
