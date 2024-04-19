@@ -83,7 +83,7 @@ class TextExtractor:
 class LLMUtils:
     def __init__(self) -> None:
         self.models_dir = os.getenv('MODELS_DIR')
-        self.model_path = os.path.join(self.models_dir, 'phi-2.Q2_K.gguf')        
+        self.model_path = os.path.join(self.models_dir, 'laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf')        
         self._llm = self.load_llm()
         self._embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-base-en-v1.5")
         self.service_context = ServiceContext.from_defaults(
