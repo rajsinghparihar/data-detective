@@ -25,9 +25,11 @@ set_global_tokenizer(
 )
 set_global_service_context(service_context=llm_module.service_context)
 
-DATA_DIR = os.getenv('DATA_DIR')
-data_dir =os.path.join(DATA_DIR, 'outputs/')  
+DATA_DIR = os.getenv("DATA_DIR")
+data_dir = os.path.join(DATA_DIR, "outputs/")
 print(data_dir)
+
+
 class Document(BaseModel):
     file_path: str
     document_type: Optional[str] = ""
@@ -125,7 +127,12 @@ def get_entities(file_path, document_type):
 # Health Check API
 @app.get("/document_processor/api/health")
 async def health_check():
-    return {"status": "healthy"}
+    try:
+        return {"status": "healthy"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        )
 
 
 # Raw Data Processing API
