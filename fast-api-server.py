@@ -6,6 +6,7 @@ from api import (
     Summarizer,
     LLMUtils,
     TabularDataExtractor,
+    CSVToMongo
 )
 from llama_index import set_global_tokenizer, set_global_service_context
 from transformers import AutoTokenizer
@@ -122,6 +123,10 @@ def get_entities(file_path, document_type):
         f.write(csv_text)
     output_filepath = os.path.abspath(output_filepath)
     summarizer.csv_formatting(csv_file_path=output_filepath)
+    
+    csv_to_mongo = CSVToMongo(document_type)
+    csv_to_mongo.run(output_filepath)
+    
     return ProcessResponse(response="success", output_filepath=output_filepath)
 
 
@@ -181,6 +186,10 @@ def get_entities_from_dir(document_type):
             f.write(csv_text)
         output_filepath = os.path.abspath(output_filepath)
         summarizer.csv_formatting(csv_file_path=output_filepath)
+        
+        csv_to_mongo = CSVToMongo(document_type)
+        csv_to_mongo.run(output_filepath)
+    
         # return ProcessResponse(response="success", output_filepath=output_filepath)
     return ProcessResponse(response="success", output_filepath=output_filepath)
         

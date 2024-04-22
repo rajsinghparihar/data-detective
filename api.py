@@ -23,6 +23,8 @@ import zipfile
 import shutil
 import json
 from dotenv import load_dotenv
+from pymongo import MongoClient
+import csv
 
 load_dotenv()
 
@@ -382,3 +384,34 @@ class TabularDataExtractor:
             min_confidence=50,
         )
         return output_filepath
+
+
+#csv to mongoDB data push:
+class CSVToMongo:
+    def __init__(self, collection_name):
+        self.mongo_uri = os.getenv("MONGO_URI")
+        self.db_name = os.getenv('MONGO_DB_NAME')
+        self.client = MongoClient(self.mongo_uri)
+        self.db = self.client[self.db_name]
+        self.collection = self.db[collection_name]
+
+    def read_csv(self, file_path):
+        data = []
+        with open(file_path, 'r') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                data.append(row)
+        return data
+
+    def push_to_mongo(self, data):
+        if len(data) == 1:
+            # Use insert_one for a single document
+            self.collection.insert_one(data[0])
+        else:
+            # Use insert_many for multiple documents
+            self.collection.insert_many(data)
+        self.client.close()
+
+    def run(self, csv_file):
+        data = self.read_csv(csv_file)
+        self.push_to_mongo(data)
