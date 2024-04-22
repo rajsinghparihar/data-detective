@@ -85,8 +85,9 @@ class TextExtractor:
 
 class LLMUtils:
     def __init__(self) -> None:
-        self.models_dir = os.getenv("DATA_DIR")
+        self.models_dir = os.getenv("MODEL_DATA_DIR")
         # self.model_path = "models/laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf"
+        # model_data/models/phi-2.Q2_K.gguf
         self.model_path = os.path.join(
             self.models_dir, "models/laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf"
         )

@@ -14,16 +14,25 @@ RUN apt-get update --yes && \
 COPY . /app
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+# RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
+
 
 # Make port 80 available to the world outside this container
 EXPOSE 8501
 
 # Define an environment variable for the models folder path
-ENV DATA_DIR /data
+# ENV MODELS_DIR /models
+
+# Define an environment variable for the models folder path
+ENV $(cat .env | xargs)
+
+
+
+
 
 # Mount the models folder from the host into the container
-VOLUME ["$DATA_DIR"]
+# VOLUME ["$MODELS_DIR"]
 
 # Run app.py when the container launches
 CMD ["python", "-m", "uvicorn", "fast-api-server:app", "--reload", "--host", "0.0.0.0", "--port", "8501"]
