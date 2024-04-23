@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
 import os
-from api import Summarizer, LLMUtils, TabularDataExtractor, CSVToMongo
+from api import Summarizer, LLMUtils, TabularDataExtractor, CSVToMongo, ConfigManager
 from llama_index import set_global_tokenizer, set_global_service_context
 from transformers import AutoTokenizer
 import requests
@@ -25,6 +25,7 @@ set_global_tokenizer(
     AutoTokenizer.from_pretrained("macadeliccc/laser-dolphin-mixtral-2x7b-dpo").encode
 )
 set_global_service_context(service_context=llm_module.service_context)
+config_manager = ConfigManager()
 
 MODEL_DATA_DIR = os.getenv("MODEL_DATA_DIR")
 INPUT_DATA_DIR = os.getenv("INPUT_DATA_DIR")
@@ -139,6 +140,19 @@ def create_temp_txt_file(text_to_save):
         return None
 
 
+def check_page_relevance(page_text, fields, thresh=0.1):
+    page_text_list = page_text.lower().split()
+    page_text_set = set(page_text_list)
+    keywords_list = []
+    for field in fields:
+        keywords_list.extend(field.lower().split())
+
+    keywords_set = set(keywords_list)
+    num_matched_fields = len(page_text_set.intersection(keywords_set))
+    total_fields = len(keywords_set)
+    return num_matched_fields >= thresh * total_fields
+
+
 # Function to simulate raw data processing (replace with your actual logic)
 def process_raw_data(file_path):
     if os.path.exists(data_dir):
@@ -163,9 +177,12 @@ def get_entities(file_path, document_type):
     local_filepath = os.path.join(data_dir, filename)
     extracted_texts = extract_page_texts(local_filepath)
     relevant_pages = []
+    fields = config_manager.get_fields_from_filetype(document_type)
     for i, text in enumerate(extracted_texts):
-        if text.lower().__contains__(document_type.lower()):
+        if check_page_relevance(page_text=text, fields=fields):
             relevant_pages.append(i)
+    if relevant_pages == []:
+        raise Exception("Provided document contains no relevant pages")
     final_df = pd.DataFrame()
     for relevant_page in relevant_pages:
         temp_filename = create_temp_txt_file(extracted_texts[relevant_page])
@@ -184,14 +201,18 @@ def get_entities(file_path, document_type):
         df["filename"] = filename
 
         final_df = pd.concat([final_df, df])
+    try:
+        output_filepath = os.path.join(
+            data_dir, "".join(filename.split(".")[:-1]) + ".csv"
+        )
+        output_filepath = os.path.abspath(output_filepath)
+        final_df.to_csv(output_filepath, index=False, sep=";")
+        csv_to_mongo = CSVToMongo(document_type)
+        csv_to_mongo.run(output_filepath)
 
-    output_filepath = os.path.join(data_dir, "".join(filename.split(".")[:-1]) + ".csv")
-    output_filepath = os.path.abspath(output_filepath)
-    final_df.to_csv(output_filepath, index=False, sep=";")
-    csv_to_mongo = CSVToMongo(document_type)
-    csv_to_mongo.run(output_filepath)
-
-    return ProcessResponse(response="success", output_filepath=output_filepath)
+        return ProcessResponse(response="success", output_filepath=output_filepath)
+    except Exception as e:
+        return ProcessResponse(response="error", output_filepath=e)
 
 
 # Health Check API
@@ -233,29 +254,16 @@ def get_entities_from_dir(document_type):
     print(os.listdir(INPUT_DATA_DIR))
     # return "successfull call"
     for filename in os.listdir(INPUT_DATA_DIR):
-        # if os.path.exists(data_dir):
-        #     shutil.rmtree(data_dir)
-        # os.mkdir(data_dir)
-        # filename = os.path.basename(file_path)
-        print("processing...:", filename)
-        file_path = os.path.join(INPUT_DATA_DIR, filename)
-        print("processing...:", file_path)
-        download_and_save_file(file_path, data_dir)
-        local_filepath = os.path.join(data_dir, filename)
-        print("processing...:", local_filepath)
-        summarizer = Summarizer(filepath=local_filepath, filetype=document_type)
-        csv_text = summarizer.summarize()
-        output_filepath = os.path.join(data_dir, filename.replace(".pdf", ".csv"))
-        with open(output_filepath, "w+") as f:
-            f.write(csv_text)
-        output_filepath = os.path.abspath(output_filepath)
-        summarizer.csv_formatting(csv_file_path=output_filepath)
-
-        csv_to_mongo = CSVToMongo(document_type)
-        csv_to_mongo.run(output_filepath)
-
-        # return ProcessResponse(response="success", output_filepath=output_filepath)
-    return ProcessResponse(response="success", output_filepath=output_filepath)
+        filepath = os.path.join(INPUT_DATA_DIR, filename)
+        try:
+            get_entities(file_path=filepath, document_type=document_type)
+        except Exception as e:
+            print(e)
+            pass
+    return ProcessResponse(
+        response="success",
+        output_filepath=f"Succesfully processed all files in {INPUT_DATA_DIR}",
+    )
 
 
 # Processed Data (Entity Extraction) API

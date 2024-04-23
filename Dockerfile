@@ -8,7 +8,7 @@ WORKDIR /app
 # Install audio libraries
 RUN apt-get update --yes && \
     apt-get upgrade --yes && \
-    apt-get install --yes --no-install-recommends gcc g++ git make ffmpeg libgl1-mesa-glx
+    apt-get install --yes --no-install-recommends gcc g++ git make ffmpeg libgl1-mesa-glx poppler-utils
 
 # Copy the current directory contents into the container at /app
 COPY . /app
