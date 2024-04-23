@@ -90,8 +90,6 @@ class LLMUtils:
         self.models_dir = os.getenv("MODEL_DATA_DIR")
         self.model_name = os.getenv("MODEL_NAME")
         print(self.model_name)
-        # self.model_path = "models/laser-dolphin-mixtral-2x7b-dpo.Q4_K_M.gguf"
-        # model_data/models/phi-2.Q2_K.gguf
         self.model_path = os.path.join(self.models_dir, "models/" + self.model_name)
         print(self.model_path)
         self._llm = self.load_llm()
@@ -234,14 +232,14 @@ class Summarizer(TextExtractor):
             response_mode="tree_summarize", use_async=True, streaming=False
         )
 
-    def csv_formatting(self, csv_file_path):
-        df = pd.read_csv(csv_file_path)
+    def csv_formatting(self, csv_file_path, delimiter=";"):
+        df = pd.read_csv(csv_file_path, delimiter=delimiter)
         if df.shape[0] == 0:
             df.loc[1, :] = df.columns.values
             df.columns = self.fields
-            df.to_csv(csv_file_path, index=False)
+            df.to_csv(csv_file_path, index=False, sep=delimiter)
         else:
-            df.to_csv(csv_file_path, index=False)
+            df.to_csv(csv_file_path, index=False, sep=delimiter)
 
     def summarize(self):
         response = self.query_engine.query(
@@ -386,19 +384,19 @@ class TabularDataExtractor:
         return output_filepath
 
 
-#csv to mongoDB data push:
+# csv to mongoDB data push:
 class CSVToMongo:
     def __init__(self, collection_name):
         self.mongo_uri = os.getenv("MONGO_URI")
-        self.db_name = os.getenv('MONGO_DB_NAME')
+        self.db_name = os.getenv("MONGO_DB_NAME")
         self.client = MongoClient(self.mongo_uri)
         self.db = self.client[self.db_name]
         self.collection = self.db[collection_name]
 
-    def read_csv(self, file_path):
+    def read_csv(self, file_path, delimiter=";"):
         data = []
-        with open(file_path, 'r') as file:
-            reader = csv.DictReader(file)
+        with open(file_path, "r") as file:
+            reader = csv.DictReader(file, delimiter=delimiter)
             for row in reader:
                 data.append(row)
         return data
