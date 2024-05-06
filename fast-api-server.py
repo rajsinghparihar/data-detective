@@ -15,9 +15,13 @@ import numpy as np
 import tempfile
 import pandas as pd
 from datetime import datetime
+from logger import CustomLogger
+import math
+from tqdm import tqdm
+from pathlib import Path
 
 load_dotenv()
-
+logger = CustomLogger().configure_logger()
 
 app = FastAPI()
 llm_module = LLMUtils()
@@ -35,6 +39,7 @@ data_dir = os.path.join(MODEL_DATA_DIR, "outputs/")
 class Document(BaseModel):
     file_path: Optional[str] = ""
     document_type: Optional[str] = ""
+    document_dir: Optional[str] = ""
 
 
 class ProcessResponse(BaseModel):
@@ -62,6 +67,7 @@ def download_and_save_file(source, save_dir):
             response = requests.get(source, stream=True)
             response.raise_for_status()  # Raise exception for non-2xx response codes
         except requests.exceptions.RequestException as e:
+            logger.error(f"Error downloading file from URL: {source}")
             raise ValueError(f"Error downloading file from URL: {source}") from e
 
         # Get filename from URL or response headers
@@ -72,6 +78,7 @@ def download_and_save_file(source, save_dir):
     else:
         # Assume local path or remote file path (not starting with http)
         if not os.path.exists(source):
+            logger.error(f"File not found: {source}")
             raise ValueError(f"File not found: {source}")
         filename = os.path.basename(source)
 
@@ -91,8 +98,7 @@ def download_and_save_file(source, save_dir):
                     f_out.write(chunk)
 
     # Print confirmation message
-    print(f"File '{filename}' downloaded from '{source}' and saved to '{save_dir}'.")
-
+    logger.info(f"File '{filename}' downloaded from '{source}' and saved to '{save_dir}'.")
 
 def extract_page_texts(pdf_path):
     """
@@ -115,7 +121,7 @@ def extract_page_texts(pdf_path):
             text = "\n".join([line[1][0] for line in result])
             extracted_text.append(text)
     except Exception as e:
-        print(f"Error opening PDF: {e}")
+        logger.error(f"Error opening PDF: {e}")
         return []
 
     return extracted_text
@@ -134,93 +140,129 @@ def create_temp_txt_file(text_to_save):
     try:
         with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as temp_file:
             temp_file.write(text_to_save.encode())  # Encode text for binary writing
+            logger.info(f"Temporary text file created at {temp_file.name}.")
             return temp_file.name
     except Exception as e:
-        print(f"Error creating temporary file: {e}")
+        logger.error(f"Error creating temporary file: {e}")
         return None
 
 
 def check_page_relevance(page_text, fields, thresh=0.1):
-    page_text_list = page_text.lower().split()
-    page_text_set = set(page_text_list)
-    keywords_list = []
-    for field in fields:
-        keywords_list.extend(field.lower().split())
+    """
+    Checks if a page of text is relevant to given fields based on keyword matching.
 
-    keywords_set = set(keywords_list)
-    num_matched_fields = len(page_text_set.intersection(keywords_set))
-    total_fields = len(keywords_set)
-    return num_matched_fields >= thresh * total_fields
+    Args:
+        page_text (str): Text content of the page.
+        fields (list): List of field names or keywords.
+        thresh (float): Threshold value between 0 and 1, where relevance score > thresh means relevant.
 
+    Returns:
+        bool: Whether the page text is deemed relevant to at least one field based on keyword matching.
+    """
 
+    try:
+        # Convert page text and fields to lowercase for case-insensitive matching
+
+        page_text_list = page_text.lower().split()
+        page_text_set = set(page_text_list)
+        keywords_list = []
+        for field in fields:
+            keywords_list.extend(field.lower().split())
+        
+        keywords_set = set(keywords_list)
+        num_matched_fields = len(page_text_set.intersection(keywords_set))
+        total_fields = len(keywords_set)
+        return num_matched_fields >= thresh * total_fields
+
+    except Exception as e:
+        logger.error(f"Error calculating page relevance: {e}")
+        return None
+        
 # Function to simulate raw data processing (replace with your actual logic)
 def process_raw_data(file_path):
-    if os.path.exists(data_dir):
-        shutil.rmtree(data_dir)
-    os.mkdir(data_dir)
-    filename = os.path.basename(file_path)
-    download_and_save_file(file_path, data_dir)
-    local_filepath = os.path.join(data_dir, filename)
-    extractor = TabularDataExtractor(filepath=local_filepath)
-    output_filepath = extractor.extract_and_save_data()
-    output_filepath = os.path.abspath(output_filepath)
-    return ProcessResponse(response="success", output_filepath=output_filepath)
+    try:
+        if not os.path.exists(data_dir):
+            os.mkdir(data_dir)
+            
+        filename = os.path.basename(file_path)
+        download_and_save_file(file_path, data_dir)
+        local_filepath = os.path.join(data_dir, filename)
+        
+        extractor = TabularDataExtractor(filepath=local_filepath)
+        output_filepath = extractor.extract_and_save_data()
+        output_filepath = os.path.abspath(output_filepath)
+        logger.info(f"Raw data processing successful. Output file saved at {output_filepath}.")
+        return ProcessResponse(response="success", output_filepath=output_filepath)
+    except Exception as e:
+        logger.error(f"Error processing raw data: {e}")
+        return None
 
 
 # Function to simulate entity extraction (replace with your actual logic)
 def get_entities(file_path, document_type):
-    if os.path.exists(data_dir):
-        shutil.rmtree(data_dir)
-    os.mkdir(data_dir)
-    filename = os.path.basename(file_path)
-    download_and_save_file(file_path, data_dir)
-    local_filepath = os.path.join(data_dir, filename)
-    extracted_texts = extract_page_texts(local_filepath)
-    relevant_pages = []
-    fields = config_manager.get_fields_from_filetype(document_type)
-    for i, text in enumerate(extracted_texts):
-        if check_page_relevance(page_text=text, fields=fields):
-            relevant_pages.append(i)
-    if relevant_pages == []:
-        raise Exception("Provided document contains no relevant pages")
-    final_df = pd.DataFrame()
-    for relevant_page in relevant_pages:
-        temp_filename = create_temp_txt_file(extracted_texts[relevant_page])
-        summarizer = Summarizer(filepath=temp_filename, filetype=document_type)
-        csv_text = summarizer.summarize()
-        output_filepath = os.path.join(
-            data_dir, "".join(filename.split(".")[:-1]) + ".csv"
-        )
-        with open(output_filepath, "w+") as f:
-            f.write(csv_text)
-        output_filepath = os.path.abspath(output_filepath)
-        summarizer.csv_formatting(csv_file_path=output_filepath)
+    try:
+        if not os.path.exists(data_dir):
+            os.mkdir(data_dir)
 
-        df = pd.read_csv(output_filepath, delimiter=";")
-        df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        df["filename"] = filename
+        filename = os.path.basename(file_path)
+        download_and_save_file(file_path, data_dir)
+        local_filepath = os.path.join(data_dir, filename)
+        extracted_texts = extract_page_texts(local_filepath)
+        relevant_pages = []
+        fields = config_manager.get_fields_from_filetype(document_type)
+        for i, text in enumerate(extracted_texts):
+            if check_page_relevance(page_text=text, fields=fields):
+                relevant_pages.append(i)
+        if not relevant_pages:
+                logger.error(f"Provided document {filename} contains no relevant pages")
+                raise Exception("Provided document contains no relevant pages")
+        final_df = pd.DataFrame()
+        for relevant_page in relevant_pages:
+            temp_filename = create_temp_txt_file(extracted_texts[relevant_page])
+            summarizer = Summarizer(filepath=temp_filename, filetype=document_type)
+            csv_text = summarizer.summarize()
+            output_filepath = os.path.join(
+                data_dir, "".join(filename.split(".")[:-1]) + ".csv"
+            )
+            with open(output_filepath, "w+") as f:
+                f.write(csv_text)
+            output_filepath = os.path.abspath(output_filepath)
+            summarizer.csv_formatting(csv_file_path=output_filepath)
 
-        final_df = pd.concat([final_df, df])
+            df = pd.read_csv(output_filepath, delimiter=";")
+            df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            df["filename"] = filename
+
+            final_df = pd.concat([final_df, df])
+    except Exception as e:
+        logger.error(f"Error processing csv data: {e}")
+        return None
     try:
         output_filepath = os.path.join(
             data_dir, "".join(filename.split(".")[:-1]) + ".csv"
         )
         output_filepath = os.path.abspath(output_filepath)
+        logger.info(f"Writing final DataFrame to CSV {output_filepath}")
         final_df.to_csv(output_filepath, index=False, sep=";")
+        logger.info(f"Writing final DataFrame to Mango {output_filepath}")
         csv_to_mongo = CSVToMongo(document_type)
         csv_to_mongo.run(output_filepath)
-
+        
         return ProcessResponse(response="success", output_filepath=output_filepath)
     except Exception as e:
+        logger.error(f"Error processing entities: {e}")
         return ProcessResponse(response="error", output_filepath=e)
 
 
 # Health Check API
 @app.get("/document_processor/api/health")
 async def health_check():
+    logger.info("health check request recevied.")
     try:
+        logger.info("health check request successful")
         return {"status": "healthy"}
     except Exception as e:
+        logger.error(f"Error in health check : {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
@@ -232,6 +274,7 @@ async def process_raw_data_api(data: Document):
     try:
         return process_raw_data(data.file_path)
     except Exception as e:
+        logger.error(f"Error during health check: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
@@ -241,29 +284,38 @@ async def process_raw_data_api(data: Document):
 @app.post("/document_processor/api/get_entities", response_model=ProcessResponse)
 async def get_entities_api(data: Document):
     try:
-        return get_entities(data.file_path, data.document_type)
+        logger.info('Starting entity extraction process.')
+        result = get_entities(data.file_path, data.document_type)
+        logger.info('Entity extraction completed successfully.')
+        return result
     except Exception as e:
+        logger.error('Error occurred during entity extraction: %s', str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
 
 
 # Function to simulate entity extraction (replace with your actual logic)
-def get_entities_from_dir(document_type):
-    print(INPUT_DATA_DIR)
-    print(os.listdir(INPUT_DATA_DIR))
-    # return "successfull call"
-    for filename in os.listdir(INPUT_DATA_DIR):
-        filepath = os.path.join(INPUT_DATA_DIR, filename)
-        try:
-            get_entities(file_path=filepath, document_type=document_type)
-        except Exception as e:
-            print(e)
-            pass
-    return ProcessResponse(
-        response="success",
-        output_filepath=f"Succesfully processed all files in {INPUT_DATA_DIR}",
-    )
+def get_entities_from_dir(document_type,document_dir):
+    logger.info('Starting to process files in directory: %s', document_dir)
+    try:
+        document_folder_full_path = os.path.join(INPUT_DATA_DIR,document_dir)
+        files = os.listdir(Path(document_folder_full_path))
+        for filename in tqdm(files):
+            filepath = os.path.join(document_folder_full_path, filename)
+            logger.info('Processing file: %s', filename)
+            try:
+                get_entities(file_path=filepath, document_type=document_type)
+                logger.info('File processed successfully: %s', filename)
+            except Exception as e:
+                logger.error('Error occurred while processing file: %s - %s', filepath, str(e))
+        
+        return ProcessResponse(
+            response="success",
+            output_filepath=f"Succesfully processed all files in {document_folder_full_path}",
+        )
+    except Exception as e:
+        logger.error('An error occurred while processing files in directory: %s - %s', document_dir, str(e))
 
 
 # Processed Data (Entity Extraction) API
@@ -272,9 +324,13 @@ def get_entities_from_dir(document_type):
 )
 async def get_entities_from_dir_api(data: Document):
     try:
-        print(data)
-        return get_entities_from_dir(data.document_type)
+        logger.info('Starting to process file from directory: %s', data.document_type)
+        
+        result = get_entities_from_dir(document_type=data.document_type,document_dir=data.document_dir)
+        logger.info(f"Succesfully processed all files in {data.document_type}")
+        return result
     except Exception as e:
+        logger.error('Error occurred during file processing: %s', str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
         )
