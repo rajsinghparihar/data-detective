@@ -229,19 +229,7 @@ class Summarizer(TextExtractor):
         self.fields = self.config_manager.get_fields_from_filetype(
             filetype=filetype.lower()
         )
-        is_file_readable = self.is_file_readable()
-        if is_file_readable:
-            logger.info("File is readable. Not using OCR.")
-            self.extract_header_ocr()
-            documents = SimpleDirectoryReader(
-                input_files=[filepath, self._header_filepath]
-            ).load_data()
-        else:
-            logger.info("File is not readable. Using text file instead")
-            self.extract_and_save_txt(filetype_keyword=filetype.lower())
-            documents = SimpleDirectoryReader(
-                input_files=[self._text_filepath]
-            ).load_data()
+        documents = SimpleDirectoryReader(input_files=[filepath]).load_data()
         response_synthesizer = get_response_synthesizer(
             response_mode="tree_summarize",
             use_async=True,
