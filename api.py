@@ -27,6 +27,7 @@ from pymongo import MongoClient
 import csv
 from logger import CustomLogger
 from datetime import datetime
+
 logger = CustomLogger().configure_logger()
 
 load_dotenv()
@@ -37,8 +38,15 @@ class TextExtractor:
         self._filepath = filepath
         self._text_filepath = "./temp/invoice_text.txt"
         self._header_filepath = "./temp/vendor_information.txt"
+        self.models_dir = os.getenv("MODEL_DATA_DIR")
         self.ppocr_obj = ppocr(
-            use_angle_cls=True, lang="en", use_gpu=True, verbose=False
+            use_angle_cls=True,
+            lang="en",
+            use_gpu=True,
+            verbose=False,
+            det_model_dir=os.path.join(self.models_dir, "models/ocr/det/"),
+            rec_model_dir=os.path.join(self.models_dir, "models/ocr/rec/"),
+            cls_model_dir=os.path.join(self.models_dir, "models/ocr/cls/"),
         )
         logger.debug("Initialized TextExtractor with filepath: %s", filepath)
 
@@ -100,7 +108,9 @@ class LLMUtils:
         logger.debug("Model name: %s", self.model_name)
         self.model_path = os.path.join(self.models_dir, "models/" + self.model_name)
         self._llm = self.load_llm()
-        self._embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-base-en-v1.5")
+        self._embed_model = HuggingFaceEmbedding(
+            model_name=os.path.join(self.models_dir, "models/embedding_model")
+        )
         self.service_context = ServiceContext.from_defaults(
             llm=self._llm,
             embed_model=self._embed_model,
@@ -419,35 +429,43 @@ class CSVToMongo:
         self.client = MongoClient(self.mongo_uri)
         self.db = self.client[self.db_name]
         self.collection = self.db[collection_name]
-    
-    def update_mongo_status(self,filename,id = None, success=False,start=True):
+
+    def update_mongo_status(self, filename, id=None, success=False, start=True):
         if start:
             file_record_intial = {
-                    "filename": filename,
-                    "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "end_time":None,
-                    "status": "processing",
-                    "success": success
-                }
+                "filename": filename,
+                "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "end_time": None,
+                "status": "processing",
+                "success": success,
+            }
             result = self.collection.insert_one(file_record_intial)
             self.client.close()
             return result.inserted_id
         else:
             self.collection.update_one(
                 {"_id": id},
-                {"$set": {"status": "completed", "success": success,"end_time":datetime.now().strftime("%Y-%m-%d %H:%M:%S")}}
+                {
+                    "$set": {
+                        "status": "completed",
+                        "success": success,
+                        "end_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                },
             )
             self.client.close()
         logger.info("file processing status update to Mango is successful.")
-                    
-    def push_raw_data(self,raw_text,filename):
-        data = {"raw_text":raw_text,
-        "filename":filename,
-        "timestamp":datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
+    def push_raw_data(self, raw_text, filename):
+        data = {
+            "raw_text": raw_text,
+            "filename": filename,
+            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
         self.collection.insert_one(data)
         self.client.close()
         logger.info("Raw data upload to Mango is successful.")
-        
+
     def read_csv(self, file_path, delimiter=";"):
         logger.info(f"Reading CSV file {file_path}")
         data = []

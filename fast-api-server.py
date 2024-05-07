@@ -93,8 +93,11 @@ def download_and_save_file(source, save_dir):
                     f_out.write(chunk)
 
     # Print confirmation message
-    logger.debug(f"File '{filename}' downloaded from '{source}' and saved to '{save_dir}'.")
+    logger.debug(
+        f"File '{filename}' downloaded from '{source}' and saved to '{save_dir}'."
+    )
     logger.info(f"File '{filename}' Downloaded!")
+
 
 def extract_page_texts(pdf_path):
     """
@@ -107,7 +110,15 @@ def extract_page_texts(pdf_path):
         list: A list containing extracted text from each page (might be empty strings).
     """
     extracted_text = []
-    ocr = ppocr(use_angle_cls=True, lang="en", use_gpu=True, verbose=False)
+    ocr = ppocr(
+        use_angle_cls=True,
+        lang="en",
+        use_gpu=True,
+        verbose=False,
+        det_model_dir=os.path.join(MODEL_DATA_DIR, "models/ocr/det/"),
+        rec_model_dir=os.path.join(MODEL_DATA_DIR, "models/ocr/rec/"),
+        cls_model_dir=os.path.join(MODEL_DATA_DIR, "models/ocr/cls/"),
+    )
     try:
         pages = convert_from_path(pdf_path)
         # Use PaddleOCR for scanned images
@@ -204,34 +215,41 @@ def get_entities(file_path, document_type):
             shutil.rmtree(data_dir)
         os.mkdir(data_dir)
         filename = os.path.basename(file_path)
-        csvs_folder = Path(os.path.join(MODEL_DATA_DIR,'tempCSV'))
+        csvs_folder = Path(os.path.join(MODEL_DATA_DIR, "tempCSV"))
         if not os.path.exists(csvs_folder):
             os.mkdir(csvs_folder)
-        output_csv_filepath = os.path.join(csvs_folder, "".join(filename.split(".")[:-1]) + ".csv")
+        output_csv_filepath = os.path.join(
+            csvs_folder, "".join(filename.split(".")[:-1]) + ".csv"
+        )
         output_csv_filepath = os.path.abspath(output_csv_filepath)
-        
-        
-        mongo_record_id = CSVToMongo('dp_status').update_mongo_status(filename=filename,start=True)
+
+        mongo_record_id = CSVToMongo("dp_status").update_mongo_status(
+            filename=filename, start=True
+        )
         download_and_save_file(file_path, data_dir)
         local_filepath = os.path.join(data_dir, filename)
-        output_filepath = os.path.join(data_dir, "".join(filename.split(".")[:-1]) + ".csv")
+        output_filepath = os.path.join(
+            data_dir, "".join(filename.split(".")[:-1]) + ".csv"
+        )
         output_filepath = os.path.abspath(output_filepath)
         extracted_texts = extract_page_texts(local_filepath)
         relevant_pages = []
         fields = config_manager.get_fields_from_filetype(document_type)
-        
+
         for i, text in enumerate(extracted_texts):
             if check_page_relevance(page_text=text, fields=fields):
                 relevant_pages.append(i)
         if not relevant_pages:
             logger.error(f"Provided document {filename} contains no relevant pages.")
-            CSVToMongo('dp_status').update_mongo_status(filename=filename,id=mongo_record_id,success=False,start=False)
+            CSVToMongo("dp_status").update_mongo_status(
+                filename=filename, id=mongo_record_id, success=False, start=False
+            )
             raise Exception("Provided document contains no relevant pages.")
 
         final_df = pd.DataFrame()
         csv_text_all = ""
-        formattinf_flag =False
-        
+        formattinf_flag = False
+
         for relevant_page in relevant_pages:
             temp_filename = create_temp_txt_file(extracted_texts[relevant_page])
             summarizer = Summarizer(filepath=temp_filename, filetype=document_type)
@@ -240,9 +258,11 @@ def get_entities(file_path, document_type):
                 f.write(csv_text)
             with open(output_csv_filepath, "w+") as f:
                 csv_text = csv_text.strip()
-                csv_text += ";"+filename+";"+datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                csv_text += (
+                    ";" + filename + ";" + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                )
                 f.write(csv_text)
-                
+
             try:
                 summarizer.csv_formatting(csv_file_path=output_filepath)
                 df = pd.read_csv(output_filepath, delimiter=";")
@@ -250,11 +270,15 @@ def get_entities(file_path, document_type):
                 df["filename"] = filename
                 final_df = pd.concat([final_df, df])
             except:
-                formattinf_flag =True
+                formattinf_flag = True
                 csv_text_all += f"\n{csv_text}"
         if formattinf_flag:
-            csv_to_mongo = CSVToMongo(document_type).push_raw_data(filename=filename,raw_text=csv_text_all)
-            CSVToMongo('dp_status').update_mongo_status(filename=filename,id=mongo_record_id,success=False,start=False)
+            csv_to_mongo = CSVToMongo(document_type).push_raw_data(
+                filename=filename, raw_text=csv_text_all
+            )
+            CSVToMongo("dp_status").update_mongo_status(
+                filename=filename, id=mongo_record_id, success=False, start=False
+            )
             return csv_text_all
         else:
             logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
@@ -262,13 +286,15 @@ def get_entities(file_path, document_type):
             logger.debug(f"Writing final DataFrame to Mango {output_filepath}")
             csv_to_mongo = CSVToMongo(document_type)
             csv_to_mongo.run(output_filepath)
-            CSVToMongo('dp_status').update_mongo_status(filename=filename,id=mongo_record_id,success=True,start=False)
+            CSVToMongo("dp_status").update_mongo_status(
+                filename=filename, id=mongo_record_id, success=True, start=False
+            )
             return ProcessResponse(response="success", output_filepath=output_filepath)
     except Exception as e:
         logger.error(f"Error in getting entites: {e}")
         return None
-        
-    
+
+
 # Health Check API
 @app.get("/document_processor/api/health")
 async def health_check():
@@ -315,8 +341,8 @@ def get_entities_from_dir(document_type, document_dir):
     logger.debug("Starting to process files in directory: %s", document_dir)
     try:
         document_folder_full_path = os.path.join(INPUT_DATA_DIR, document_dir)
-        
-        csvs_folder = Path(os.path.join(MODEL_DATA_DIR,'tempCSV'))
+
+        csvs_folder = Path(os.path.join(MODEL_DATA_DIR, "tempCSV"))
         if os.path.exists(csvs_folder):
             shutil.rmtree(csvs_folder)
             os.mkdir(csvs_folder)
@@ -326,13 +352,24 @@ def get_entities_from_dir(document_type, document_dir):
             logger.info("Processing file: %s", filename)
             result = get_entities(file_path=filepath, document_type=document_type)
             try:
-                if type(result)== str:
+                if type(result) == str:
                     file_name = document_dir + ".csv"
-                    result += (result +";"+filename+";"+str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-                    output_filepath = os.path.join(MODEL_DATA_DIR,"raw_data",file_name)
+                    result += (
+                        result
+                        + ";"
+                        + filename
+                        + ";"
+                        + str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                    )
+                    output_filepath = os.path.join(
+                        MODEL_DATA_DIR, "raw_data", file_name
+                    )
                     with open(output_filepath, "w+") as f:
                         f.write(result)
-                    logger.info("File processed with error, outputs are in csv for the file: %s", filename)
+                    logger.info(
+                        "File processed with error, outputs are in csv for the file: %s",
+                        filename,
+                    )
                 else:
                     logger.info("File processed successfully, %s", filename)
             except Exception as e:
@@ -347,15 +384,15 @@ def get_entities_from_dir(document_type, document_dir):
                 with open(file_path, "r") as f:
                     content = f.readlines()
                     combined_content.extend(content)
-        raw_data_dir = Path(os.path.join(MODEL_DATA_DIR,'raw_data'))
+        raw_data_dir = Path(os.path.join(MODEL_DATA_DIR, "raw_data"))
         if not os.path.exists(raw_data_dir):
             os.mkdir(raw_data_dir)
         combined_file_path = os.path.join(raw_data_dir, f"{document_dir}.csv")
-        
+
         with open(combined_file_path, "w") as f:
             combined_content_txt = "\n".join(combined_content)
             f.writelines(combined_content_txt)
-            
+
         return ProcessResponse(
             response="success",
             output_filepath=f"Succesfully processed all files in {document_folder_full_path}",
@@ -374,7 +411,9 @@ def get_entities_from_dir(document_type, document_dir):
 )
 async def get_entities_from_dir_api(data: Document):
     try:
-        logger.info(f"Starting to process file from directory: {data.document_dir} for document type: {data.document_type}.")
+        logger.info(
+            f"Starting to process file from directory: {data.document_dir} for document type: {data.document_type}."
+        )
 
         result = get_entities_from_dir(
             document_type=data.document_type, document_dir=data.document_dir
