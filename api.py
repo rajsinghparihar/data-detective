@@ -26,7 +26,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 import csv
 from logger import CustomLogger
-
+from datetime import datetime
 logger = CustomLogger().configure_logger()
 
 load_dotenv()
@@ -40,7 +40,7 @@ class TextExtractor:
         self.ppocr_obj = ppocr(
             use_angle_cls=True, lang="en", use_gpu=True, verbose=False
         )
-        logger.info("Initialized TextExtractor with filepath: %s", filepath)
+        logger.debug("Initialized TextExtractor with filepath: %s", filepath)
 
     def is_file_readable(self):
         total_words = 0
@@ -51,7 +51,7 @@ class TextExtractor:
 
         if total_words < 100:
             return False
-        logger.info("File is computer readable with %d words", total_words)
+        logger.debug("File is computer readable with %d words", total_words)
         return True
 
     def extract_and_save_txt(self, filetype_keyword: str):
@@ -94,10 +94,10 @@ class TextExtractor:
 
 class LLMUtils:
     def __init__(self) -> None:
-        logger.info("Initializing LLMUtils")
+        logger.debug("Initializing LLMUtils")
         self.models_dir = os.getenv("MODEL_DATA_DIR")
         self.model_name = os.getenv("MODEL_NAME")
-        logger.info("Model name: %s", self.model_name)
+        logger.debug("Model name: %s", self.model_name)
         self.model_path = os.path.join(self.models_dir, "models/" + self.model_name)
         self._llm = self.load_llm()
         self._embed_model = HuggingFaceEmbedding(model_name="BAAI/bge-base-en-v1.5")
@@ -107,8 +107,8 @@ class LLMUtils:
         )
 
     def load_llm(self):
-        logger.info(f"Loading LLM model: {self.model_name}")
-        return LlamaCPP(
+        logger.info(f"Loading LLM model: {self.model_name.split('.')[0]}")
+        llm = LlamaCPP(
             model_path=self.model_path,
             temperature=0,
             max_new_tokens=512,
@@ -117,18 +117,20 @@ class LLMUtils:
             model_kwargs={"n_gpu_layers": 8},
             messages_to_prompt=messages_to_prompt,
             completion_to_prompt=completion_to_prompt,
-            verbose=True,
+            verbose=False,
         )
+        logger.info("Model loaded!")
+        return llm
 
 
 class ConfigManager:
     def __init__(self) -> None:
-        logger.info("Initializing ConfigManager")
+        logger.debug("Initializing ConfigManager")
         self.config_filepath = "./temp/config.json"
         self.config_data = self.read_config()
 
     def read_config(self):
-        logger.info("Reading config file")
+        logger.debug("Reading config file")
         try:
             with open(self.config_filepath, "r") as file:
                 config_data = json.load(file)
@@ -141,13 +143,13 @@ class ConfigManager:
             return None
 
     def write_config(self, config_data):
-        logger.info("Writing updated config to file")
+        logger.debug("Writing updated config to file")
         self.config_data = config_data
         with open(self.config_filepath, "w") as file:
             json.dump(config_data, file, indent=4)
 
     def update_config(self, filetype, fields):
-        logger.info("Updating configuration for type: %s", filetype)
+        logger.debug("Updating configuration for type: %s", filetype)
         # Check if the type already exists
         for config in self.config_data["configs"]:
             if config["type"] == filetype:
@@ -157,12 +159,12 @@ class ConfigManager:
                 config["fields"] = list(existing_fields.union(fields))
                 return self.config_data
         # If type does not exist, add new configuration
-        logger.info("Adding new configuration for type: %s", filetype)
+        logger.debug("Adding new configuration for type: %s", filetype)
         self.config_data["configs"].append({"type": filetype, "fields": fields})
         return self.config_data
 
     def update_config_with_new_fields(self, filetype, fields):
-        logger.info("Updating config with new fields for type: %s", filetype)
+        logger.debug("Updating config with new fields for type: %s", filetype)
         self.config_data = self.read_config()
         if self.config_data is None:
             return
@@ -170,18 +172,18 @@ class ConfigManager:
         self.write_config(self.config_data)
 
     def get_fields_from_filetype(self, filetype):
-        logger.info("Getting fields for type: %s", filetype)
+        logger.debug("Getting fields for type: %s", filetype)
         if self.config_data is None:
             self.config_data = self.read_config()
         configs = self.config_data["configs"]
         for config in configs:
             if config["type"] == filetype:
                 return config["fields"]
-        print("No config found for this filetype.")
+        logger.error("No config found for this filetype.")
         return []
 
     def get_db_table_info(self):
-        logger.info("Getting database table information")
+        logger.debug("Getting database table information")
         document_types = []
         for data in self.config_data["configs"]:
             document_types.append((data["type"].title(), data["fields"]))
@@ -190,12 +192,12 @@ class ConfigManager:
 
 class PromptManager:
     def __init__(self) -> None:
-        logger.info("Initializing PromptManager")
+        logger.debug("Initializing PromptManager")
         self.prompt_config_filepath = "./temp/prompts.json"
         self.prompts = self.read_config()
 
     def read_config(self) -> dict:
-        logger.info("Reading prompt configuration file")
+        logger.debug("Reading prompt configuration file")
         try:
             with open(self.prompt_config_filepath, "r") as file:
                 config_data = json.load(file)
@@ -208,7 +210,7 @@ class PromptManager:
             return None
 
     def get_general_prompt(self) -> str:
-        logger.info("Getting general prompt")
+        logger.debug("Getting general prompt")
         return self.prompts["general_prompt"]
 
 
@@ -219,7 +221,7 @@ class Summarizer(TextExtractor):
             - examples: ["Invoice", "CAF", etc.]
         used to select correct fields to summarize from configfile.
         """
-        logger.info("Initializing Summarizer")
+        logger.debug("Initializing Summarizer")
         super().__init__(filepath)
         self.prompt_manager = PromptManager()
         self.prompt = self.prompt_manager.get_general_prompt()
@@ -234,18 +236,18 @@ class Summarizer(TextExtractor):
             response_mode="tree_summarize",
             use_async=True,
         )
-        logger.info("Creating VectorStoreIndex from documents")
+        logger.debug("Creating VectorStoreIndex from documents")
         self.index = VectorStoreIndex.from_documents(
             documents=documents,
             response_synthesizer=response_synthesizer,
         )
-        logger.info("Creating query engine from index")
+        logger.debug("Creating query engine from index")
         self.query_engine = self.index.as_query_engine(
             response_mode="tree_summarize", use_async=True, streaming=False
         )
 
     def csv_formatting(self, csv_file_path, delimiter=";"):
-        logger.info("Formatting CSV file")
+        logger.debug("Formatting CSV file")
         df = pd.read_csv(csv_file_path, delimiter=delimiter)
         if df.shape[0] == 0:
             logger.info("No header in CSV file. Using header as default values")
@@ -253,11 +255,11 @@ class Summarizer(TextExtractor):
             df.columns = self.fields
             df.to_csv(csv_file_path, index=False, sep=delimiter)
         else:
-            logger.info("Formatting CSV file with existing data")
+            logger.debug("Formatting CSV file with existing data")
             df.to_csv(csv_file_path, index=False, sep=delimiter)
 
     def summarize(self):
-        logger.info("Summarizing using query engine")
+        logger.info("Extracting required fields using LLM call, wait...")
         response = self.query_engine.query(
             self.prompt.format(fields=", ".join(self.fields))
         )
@@ -266,14 +268,14 @@ class Summarizer(TextExtractor):
 
 class DocumentsProcessor:
     def __init__(self, zip_filepath, data_dir) -> None:
-        logger.info("Initializing Document Processor")
+        logger.debug("Initializing Document Processor")
         self.ocr = PaddleOCR(lang="en", kw={"use_gpu": True})
         self.zip_filepath = zip_filepath
         self.zip_files_dir = os.path.dirname(self.zip_filepath)
         self.extracted_data_dir = data_dir
 
     def extract_files_from_zip(self):
-        logger.info("Extracting files from zip archive")
+        logger.debug("Extracting files from zip archive")
         with zipfile.ZipFile(self.zip_filepath, "r") as zip_ref:
             zip_ref.extractall(self.zip_files_dir)
 
@@ -288,7 +290,7 @@ class DocumentsProcessor:
         - destination_dir = "./temp/extracted_files"
         - output_filepath = "./temp/extracted_files/442.xlsx"
         """
-        logger.info("Extracting data from files")
+        logger.debug("Extracting data from files")
         for filename in os.listdir(self.zip_files_dir):
             filepath = os.path.join(self.zip_files_dir, filename)
             if filename.endswith("pdf"):
@@ -296,7 +298,7 @@ class DocumentsProcessor:
                 output_filename = filename.replace(".pdf", ".xlsx")
 
                 output_filepath = os.path.join(self.extracted_data_dir, output_filename)
-                logger.info(f"Converting {filename} to Excel file")
+                logger.debug(f"Converting {filename} to Excel file")
                 doc.to_xlsx(
                     dest=output_filepath,
                     ocr=self.ocr,
@@ -306,13 +308,13 @@ class DocumentsProcessor:
                 )
             elif filename.endswith("xlsx") or filename.endswith("csv"):
                 # move file to destination directory
-                logger.info(f"Moving {filename} to extracted data directory")
+                logger.debug(f"Moving {filename} to extracted data directory")
                 shutil.copy(filepath, self.extracted_data_dir)
             else:
                 continue
 
     def save_extracted_data(self, save_filepath):
-        logger.info("Saving extracted data as zip archive")
+        logger.debug("Saving extracted data as zip archive")
         # extract files from zip archive
         self.extract_files_from_zip()
         # extract data
@@ -390,14 +392,14 @@ class DuplicateChecker:
 # extracts tabular data from single pdf and saves it to single xlsx file
 class TabularDataExtractor:
     def __init__(self, filepath: str) -> None:
-        logger.info("Initializing Document Tabular Data Extractor")
+        logger.debug("Initializing Document Tabular Data Extractor")
         self.ocr = PaddleOCR(lang="en", kw={"use_gpu": True})
         self.filepath = filepath
 
     def extract_and_save_data(self) -> None:
         doc = PDF(src=self.filepath)
         output_filepath = self.filepath.replace(".pdf", ".xlsx")
-        logger.info("Convertingto Excel file")
+        logger.debug("Convertingto Excel file")
         doc.to_xlsx(
             dest=output_filepath,
             ocr=self.ocr,
@@ -411,13 +413,41 @@ class TabularDataExtractor:
 # csv to mongoDB data push:
 class CSVToMongo:
     def __init__(self, collection_name):
-        logger.info("Initializing CSV to MongoDB processor")
+        logger.debug("Initializing CSV to MongoDB processor")
         self.mongo_uri = os.getenv("MONGO_URI")
         self.db_name = os.getenv("MONGO_DB_NAME")
         self.client = MongoClient(self.mongo_uri)
         self.db = self.client[self.db_name]
         self.collection = self.db[collection_name]
-
+    
+    def update_mongo_status(self,filename,id = None, success=False,start=True):
+        if start:
+            file_record_intial = {
+                    "filename": filename,
+                    "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "end_time":None,
+                    "status": "processing",
+                    "success": success
+                }
+            result = self.collection.insert_one(file_record_intial)
+            self.client.close()
+            return result.inserted_id
+        else:
+            self.collection.update_one(
+                {"_id": id},
+                {"$set": {"status": "completed", "success": success,"end_time":datetime.now().strftime("%Y-%m-%d %H:%M:%S")}}
+            )
+            self.client.close()
+        logger.info("file processing status update to Mango is successful.")
+                    
+    def push_raw_data(self,raw_text,filename):
+        data = {"raw_text":raw_text,
+        "filename":filename,
+        "timestamp":datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+        self.collection.insert_one(data)
+        self.client.close()
+        logger.info("Raw data upload to Mango is successful.")
+        
     def read_csv(self, file_path, delimiter=";"):
         logger.info(f"Reading CSV file {file_path}")
         data = []
@@ -428,7 +458,7 @@ class CSVToMongo:
         return data
 
     def push_to_mongo(self, data):
-        logger.info("Pushing data to MongoDB")
+        logger.debug("Pushing data to MongoDB")
         if len(data) == 1:
             # Use insert_one for a single document
             self.collection.insert_one(data[0])
@@ -438,6 +468,6 @@ class CSVToMongo:
         self.client.close()
 
     def run(self, csv_file):
-        logger.info("Running CSV to MongoDB processor")
         data = self.read_csv(csv_file)
         self.push_to_mongo(data)
+        logger.info("Extrected data upload to Mongo is successful.")
