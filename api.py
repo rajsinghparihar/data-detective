@@ -30,7 +30,7 @@ from datetime import datetime
 
 logger = CustomLogger().configure_logger()
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 class TextExtractor:
@@ -127,7 +127,7 @@ class LLMUtils:
             model_kwargs={"n_gpu_layers": 8},
             messages_to_prompt=messages_to_prompt,
             completion_to_prompt=completion_to_prompt,
-            verbose=False,
+            verbose=True,
         )
         logger.info("Model loaded!")
         return llm

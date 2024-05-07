@@ -18,7 +18,7 @@ from tqdm import tqdm
 from pathlib import Path
 import shutil
 
-load_dotenv()
+load_dotenv(override=True)
 logger = CustomLogger().configure_logger()
 
 app = FastAPI()

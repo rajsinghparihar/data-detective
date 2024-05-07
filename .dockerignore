@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.zip
+*.pdf
+*.xlsx
+*.png
+*.ipynb
+*.csv
+data/
+.ruff_cache/
