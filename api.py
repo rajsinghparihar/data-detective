@@ -228,7 +228,7 @@ class PromptManager:
 
 
 class Summarizer(TextExtractor):
-    def __init__(self, filepath: str, filetype: str) -> None:
+    def __init__(self, filepath: str, pdf_filepath: str, filetype: str) -> None:
         """
         - filetype: str
             - examples: ["Invoice", "CAF", etc.]
@@ -244,7 +244,9 @@ class Summarizer(TextExtractor):
         self.fields = self.config_manager.get_fields_from_filetype(
             filetype=filetype.lower()
         )
-        documents = SimpleDirectoryReader(input_files=[filepath]).load_data()
+        documents = SimpleDirectoryReader(
+            input_files=[filepath, pdf_filepath]
+        ).load_data()
         response_synthesizer = get_response_synthesizer(
             response_mode="tree_summarize",
             use_async=True,

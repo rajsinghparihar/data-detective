@@ -261,7 +261,11 @@ def get_entities(file_path, document_type):
 
         for relevant_page in relevant_pages:
             temp_filename = create_temp_txt_file(extracted_texts[relevant_page])
-            summarizer = Summarizer(filepath=temp_filename, filetype=document_type)
+            summarizer = Summarizer(
+                filepath=temp_filename,
+                pdf_filepath=local_filepath,
+                filetype=document_type,
+            )
             csv_text = summarizer.summarize()
             with open(output_filepath, "w+") as f:
                 f.write(csv_text)
