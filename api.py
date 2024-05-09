@@ -454,7 +454,7 @@ class CSVToMongo:
                 },
             )
             self.client.close()
-        logger.info("file processing status update to Mango is successful.")
+        logger.info("file processing status update to Mongo is successful.")
 
     def push_raw_data(self, raw_text, filename):
         data = {
@@ -464,7 +464,7 @@ class CSVToMongo:
         }
         self.collection.insert_one(data)
         self.client.close()
-        logger.info("Raw data upload to Mango is successful.")
+        logger.info("Raw data upload to Mongo is successful.")
 
     def read_csv(self, file_path, delimiter=";"):
         logger.info(f"Reading CSV file {file_path}")

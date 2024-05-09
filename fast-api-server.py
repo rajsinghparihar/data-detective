@@ -39,7 +39,7 @@ class Document(BaseModel):
 
 class ProcessResponse(BaseModel):
     response: str
-    output_filepath: str
+    output_filepath: Optional[str] = ""
 
 
 def download_and_save_file(source, save_dir):
@@ -233,6 +233,14 @@ def get_entities(file_path, document_type):
         )
         output_filepath = os.path.abspath(output_filepath)
         extracted_texts = extract_page_texts(local_filepath)
+        # extract sap ids
+
+        """
+        if document_type is work completion certificate:
+            extract sap ids
+            create dataframe of sap ids
+            merge with llm extracted entities.
+        """
         relevant_pages = []
         fields = config_manager.get_fields_from_filetype(document_type)
 
@@ -269,7 +277,13 @@ def get_entities(file_path, document_type):
                 df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 df["filename"] = filename
                 final_df = pd.concat([final_df, df])
-            except:
+                logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
+                final_df.to_csv(output_filepath, index=False, sep=";")
+                logger.debug(f"Writing final DataFrame to Mongo {output_filepath}")
+                csv_to_mongo = CSVToMongo(document_type)
+                csv_to_mongo.run(output_filepath)
+            except Exception as e:
+                logger.debug(f"Exception: {e}")
                 formattinf_flag = True
                 csv_text_all += f"\n{csv_text}"
         if formattinf_flag:
@@ -279,13 +293,13 @@ def get_entities(file_path, document_type):
             CSVToMongo("dp_status").update_mongo_status(
                 filename=filename, id=mongo_record_id, success=False, start=False
             )
-            return csv_text_all
+            return ProcessResponse(response="raw text extracted")
         else:
-            logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
-            final_df.to_csv(output_filepath, index=False, sep=";")
-            logger.debug(f"Writing final DataFrame to Mango {output_filepath}")
-            csv_to_mongo = CSVToMongo(document_type)
-            csv_to_mongo.run(output_filepath)
+            # logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
+            # final_df.to_csv(output_filepath, index=False, sep=";")
+            # logger.debug(f"Writing final DataFrame to Mongo {output_filepath}")
+            # csv_to_mongo = CSVToMongo(document_type)
+            # csv_to_mongo.run(output_filepath)
             CSVToMongo("dp_status").update_mongo_status(
                 filename=filename, id=mongo_record_id, success=True, start=False
             )
