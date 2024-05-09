@@ -154,7 +154,7 @@ def create_temp_txt_file(text_to_save):
         return None
 
 
-def check_page_relevance(page_text, fields, thresh=0.1):
+def check_page_relevance(page_text, fields, thresh=0.2):
     """
     Checks if a page of text is relevant to given fields based on keyword matching.
 
@@ -247,6 +247,7 @@ def get_entities(file_path, document_type):
         for i, text in enumerate(extracted_texts):
             if check_page_relevance(page_text=text, fields=fields):
                 relevant_pages.append(i)
+                break
         if not relevant_pages:
             logger.error(f"Provided document {filename} contains no relevant pages.")
             CSVToMongo("dp_status").update_mongo_status(

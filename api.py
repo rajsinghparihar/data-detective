@@ -201,10 +201,11 @@ class ConfigManager:
 
 
 class PromptManager:
-    def __init__(self) -> None:
+    def __init__(self, filetype) -> None:
         logger.debug("Initializing PromptManager")
         self.prompt_config_filepath = "./temp/prompts.json"
         self.prompts = self.read_config()
+        self.filetype = filetype
 
     def read_config(self) -> dict:
         logger.debug("Reading prompt configuration file")
@@ -219,8 +220,10 @@ class PromptManager:
             logger.error("Error decoding JSON in config file.")
             return None
 
-    def get_general_prompt(self) -> str:
+    def get_prompt(self) -> str:
         logger.debug("Getting general prompt")
+        if self.filetype == "invoice":
+            return self.prompts["invoice_prompt"]
         return self.prompts["general_prompt"]
 
 
@@ -233,8 +236,8 @@ class Summarizer(TextExtractor):
         """
         logger.debug("Initializing Summarizer")
         super().__init__(filepath)
-        self.prompt_manager = PromptManager()
-        self.prompt = self.prompt_manager.get_general_prompt()
+        self.prompt_manager = PromptManager(filetype)
+        self.prompt = self.prompt_manager.get_prompt()
 
         self.config_manager = ConfigManager()
         # always using filetype.lower() assuming that keys in the config file will always be lowercase strings
