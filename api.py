@@ -9,6 +9,7 @@ from llama_index.llms.llama_utils import (
     messages_to_prompt,
     completion_to_prompt,
 )
+from llama_index.postprocessor import SentenceTransformerRerank
 from llama_index.embeddings import HuggingFaceEmbedding
 from pdf2image import convert_from_path
 import fitz
@@ -27,6 +28,7 @@ from pymongo import MongoClient
 import csv
 from logger import CustomLogger
 from datetime import datetime
+from typing import Optional
 
 logger = CustomLogger().configure_logger()
 
@@ -49,6 +51,27 @@ class TextExtractor:
             cls_model_dir=os.path.join(self.models_dir, "models/ocr/cls/"),
         )
         logger.debug("Initialized TextExtractor with filepath: %s", filepath)
+
+    def count_pdf_pages(self):
+        """
+        This function counts the number of pages in a PDF file using fitz.
+
+        Args:
+            filepath (str): The path to the PDF file.
+
+        Returns:
+            int: The number of pages in the PDF file.
+
+        Raises:
+            Exception: If the file cannot be opened or is not a PDF file.
+        """
+        try:
+            doc = fitz.open(self._filepath)
+            logger.debug(f"File:: {self._filepath} has {doc.page_count} pages")
+            return doc.page_count
+        except Exception as e:
+            logger.error("Error opening PDF file:: %s", self._filepath)
+            raise Exception(f"Error opening PDF file: {self._filepath}. Reason: {e}")
 
     def is_file_readable(self):
         total_words = 0
@@ -109,11 +132,14 @@ class LLMUtils:
         self.model_path = os.path.join(self.models_dir, "models/" + self.model_name)
         self._llm = self.load_llm()
         self._embed_model = HuggingFaceEmbedding(
-            model_name=os.path.join(self.models_dir, "models/embedding_model")
+            model_name=os.path.join(self.models_dir, "models/embedding_model_v1")
         )
         self.service_context = ServiceContext.from_defaults(
             llm=self._llm,
             embed_model=self._embed_model,
+        )
+        self.rerank = SentenceTransformerRerank(
+            model=os.path.join(self.models_dir, "models/reranking_model"), top_n=3
         )
 
     def load_llm(self):
@@ -122,7 +148,7 @@ class LLMUtils:
             model_path=self.model_path,
             temperature=0,
             max_new_tokens=512,
-            context_window=3900,
+            context_window=8000,
             generate_kwargs={},
             model_kwargs={"n_gpu_layers": 8},
             messages_to_prompt=messages_to_prompt,
@@ -227,15 +253,20 @@ class PromptManager:
         return self.prompts["general_prompt"]
 
 
-class Summarizer(TextExtractor):
-    def __init__(self, filepath: str, pdf_filepath: str, filetype: str) -> None:
+class Summarizer:
+    def __init__(
+        self,
+        filetype: str,
+        rerank: SentenceTransformerRerank,
+        filepath: Optional[str] = None,
+        pdf_filepath: Optional[str] = None,
+    ) -> None:
         """
         - filetype: str
             - examples: ["Invoice", "CAF", etc.]
         used to select correct fields to summarize from configfile.
         """
         logger.debug("Initializing Summarizer")
-        super().__init__(filepath)
         self.prompt_manager = PromptManager(filetype)
         self.prompt = self.prompt_manager.get_prompt()
 
@@ -244,9 +275,12 @@ class Summarizer(TextExtractor):
         self.fields = self.config_manager.get_fields_from_filetype(
             filetype=filetype.lower()
         )
-        documents = SimpleDirectoryReader(
-            input_files=[filepath, pdf_filepath]
-        ).load_data()
+        if filepath is not None:
+            documents = SimpleDirectoryReader(
+                input_files=[pdf_filepath, filepath]
+            ).load_data()
+        else:
+            documents = SimpleDirectoryReader(input_files=[pdf_filepath]).load_data()
         response_synthesizer = get_response_synthesizer(
             response_mode="tree_summarize",
             use_async=True,
@@ -258,7 +292,11 @@ class Summarizer(TextExtractor):
         )
         logger.debug("Creating query engine from index")
         self.query_engine = self.index.as_query_engine(
-            response_mode="tree_summarize", use_async=True, streaming=False
+            response_mode="tree_summarize",
+            use_async=True,
+            streaming=False,
+            similarity_top_k=3,
+            node_postprocessors=[rerank],
         )
 
     def csv_formatting(self, csv_file_path, delimiter=";"):
@@ -435,10 +473,13 @@ class CSVToMongo:
         self.db = self.client[self.db_name]
         self.collection = self.db[collection_name]
 
-    def update_mongo_status(self, filename, id=None, success=False, start=True):
+    def update_mongo_status(
+        self, filename, process_id, id=None, success=False, start=True
+    ):
         if start:
             file_record_intial = {
                 "filename": filename,
+                "process_id": process_id,
                 "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "end_time": None,
                 "status": "processing",

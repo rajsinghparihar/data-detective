@@ -1,8 +1,14 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
 import os
-from api import Summarizer, LLMUtils, TabularDataExtractor, CSVToMongo, ConfigManager
+from api import (
+    Summarizer,
+    LLMUtils,
+    CSVToMongo,
+    ConfigManager,
+    TextExtractor,
+)
 from llama_index import set_global_service_context
 import requests
 import re
@@ -17,9 +23,11 @@ from logger import CustomLogger
 from tqdm import tqdm
 from pathlib import Path
 import shutil
+import uuid
 
 load_dotenv(override=True)
-logger = CustomLogger().configure_logger()
+logger_instance = CustomLogger()
+logger_instance.configure_logger()
 
 app = FastAPI()
 llm_module = LLMUtils()
@@ -39,10 +47,16 @@ class Document(BaseModel):
 
 class ProcessResponse(BaseModel):
     response: str
-    output_filepath: Optional[str] = ""
+    message: Optional[str] = ""
+    process_id: Optional[str] = ""
 
 
-def download_and_save_file(source, save_dir):
+def generate_unique_process_id():
+    """Generates a unique request ID using UUID."""
+    return str(uuid.uuid1())
+
+
+def download_and_save_file(source, save_dir, logger):
     """
     Downloads a file from a source (local path, remote URL, or remote file path)
     and saves it to the specified directory.
@@ -75,7 +89,7 @@ def download_and_save_file(source, save_dir):
         if not os.path.exists(source):
             logger.error(f"File not found: {source}")
             raise ValueError(f"File not found: {source}")
-        filename = os.path.basename(source)
+        filename = "document.pdf"
 
     # Construct the full save path within the directory
     save_path = os.path.join(save_dir, filename)
@@ -99,7 +113,7 @@ def download_and_save_file(source, save_dir):
     logger.info(f"File '{filename}' Downloaded!")
 
 
-def extract_page_texts(pdf_path):
+def extract_page_texts(pdf_path, logger):
     """
     Checks if a PDF is readable and extracts text using the appropriate method.
 
@@ -134,7 +148,7 @@ def extract_page_texts(pdf_path):
     return extracted_text
 
 
-def create_temp_txt_file(text_to_save):
+def create_temp_txt_file(text_to_save, logger):
     """
     Creates a temporary text file and saves the given text in it.
 
@@ -154,7 +168,7 @@ def create_temp_txt_file(text_to_save):
         return None
 
 
-def check_page_relevance(page_text, fields, thresh=0.2):
+def check_page_relevance(page_text, fields, logger, thresh=0.2):
     """
     Checks if a page of text is relevant to given fields based on keyword matching.
 
@@ -186,35 +200,107 @@ def check_page_relevance(page_text, fields, thresh=0.2):
         return None
 
 
-# Function to simulate raw data processing (replace with your actual logic)
-def process_raw_data(file_path):
-    try:
-        if not os.path.exists(data_dir):
-            os.mkdir(data_dir)
+# # Function to simulate raw data processing (replace with your actual logic)
+# def process_raw_data(file_path, logger):
+#     try:
+#         if not os.path.exists(data_dir):
+#             os.mkdir(data_dir)
 
-        filename = os.path.basename(file_path)
-        download_and_save_file(file_path, data_dir)
-        local_filepath = os.path.join(data_dir, filename)
+#         filename = os.path.basename(file_path)
+#         download_and_save_file(file_path, data_dir, logger=logger)
+#         local_filepath = os.path.join(data_dir, filename)
 
-        extractor = TabularDataExtractor(filepath=local_filepath)
-        output_filepath = extractor.extract_and_save_data()
-        output_filepath = os.path.abspath(output_filepath)
-        logger.info(
-            f"Raw data processing successful. Output file saved at {output_filepath}."
+#         extractor = TabularDataExtractor(filepath=local_filepath)
+#         output_filepath = extractor.extract_and_save_data()
+#         output_filepath = os.path.abspath(output_filepath)
+#         logger.info(
+#             f"Raw data processing successful. Output file saved at {output_filepath}."
+#         )
+#         return ProcessResponse(response="success", message=output_filepath)
+#     except Exception as e:
+#         logger.error(f"Error processing raw data: {e}")
+#         return None
+
+
+def get_entities(filepath, document_type, process_id, logger):
+    te = TextExtractor(filepath=filepath)
+    if te.is_file_readable():
+        if te.count_pdf_pages() < 15:
+            filename = os.path.basename(filepath)
+            mongo_record_id = CSVToMongo("dp_status").update_mongo_status(
+                filename=filename, process_id=process_id, start=True
+            )
+            download_and_save_file(filepath, data_dir, logger=logger)
+            summarizer = Summarizer(
+                pdf_filepath=os.path.join(data_dir, "document.pdf"),
+                rerank=llm_module.rerank,
+                filetype=document_type,
+            )
+            csv_text = summarizer.summarize()
+            output_filepath = os.path.join(
+                data_dir, "".join(filename.split(".")[:-1]) + ".csv"
+            )
+            output_filepath = os.path.abspath(output_filepath)
+            csv_text = ";".join([value.strip() for value in csv_text.split(";")])
+            with open(output_filepath, "w+") as f:
+                f.write(csv_text)
+            try:
+                summarizer.csv_formatting(csv_file_path=output_filepath)
+                df = pd.read_csv(output_filepath, delimiter=";")
+                df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                df["filename"] = filename
+                df["process_id"] = process_id
+                logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
+                df.to_csv(output_filepath, index=False, sep=";")
+                logger.debug(f"Writing final DataFrame to Mongo {output_filepath}")
+                csv_to_mongo = CSVToMongo(document_type)
+                csv_to_mongo.run(output_filepath)
+                CSVToMongo("dp_status").update_mongo_status(
+                    filename=filename,
+                    process_id=process_id,
+                    id=mongo_record_id,
+                    success=True,
+                    start=False,
+                )
+                logger.info("Entity extraction completed successfully.")
+
+            except Exception as e:
+                logger.debug(f"Exception: {e}")
+                csv_to_mongo = CSVToMongo(document_type).push_raw_data(
+                    filename=filename, raw_text=csv_text
+                )
+                CSVToMongo("dp_status").update_mongo_status(
+                    filename=filename,
+                    process_id=process_id,
+                    id=mongo_record_id,
+                    success=False,
+                    start=False,
+                )
+                logger.info("Raw Data Pushed to Mongo! Key Value Mismatch")
+            return csv_text
+    else:
+        return get_entities_ocr(
+            filepath=filepath,
+            document_type=document_type,
+            process_id=process_id,
+            logger=logger,
         )
-        return ProcessResponse(response="success", output_filepath=output_filepath)
-    except Exception as e:
-        logger.error(f"Error processing raw data: {e}")
-        return None
 
 
 # Function to simulate entity extraction (replace with your actual logic)
-def get_entities(file_path, document_type):
+def get_entities_ocr(filepath, document_type, process_id, logger):
+    # extract sap ids
+    """
+    if document_type is work completion certificate:
+        extract sap ids
+        create dataframe of sap ids
+        merge with llm extracted entities.
+    """
     try:
         if os.path.exists(data_dir):
             shutil.rmtree(data_dir)
         os.mkdir(data_dir)
-        filename = os.path.basename(file_path)
+        filename = os.path.basename(filepath)
         csvs_folder = Path(os.path.join(MODEL_DATA_DIR, "tempCSV"))
         if not os.path.exists(csvs_folder):
             os.mkdir(csvs_folder)
@@ -224,17 +310,16 @@ def get_entities(file_path, document_type):
         output_csv_filepath = os.path.abspath(output_csv_filepath)
 
         mongo_record_id = CSVToMongo("dp_status").update_mongo_status(
-            filename=filename, start=True
+            filename=filename, process_id=process_id, start=True
         )
-        download_and_save_file(file_path, data_dir)
+        download_and_save_file(filepath, data_dir, logger=logger)
         local_filepath = os.path.join(data_dir, filename)
         output_filepath = os.path.join(
             data_dir, "".join(filename.split(".")[:-1]) + ".csv"
         )
         output_filepath = os.path.abspath(output_filepath)
-        extracted_texts = extract_page_texts(local_filepath)
+        extracted_texts = extract_page_texts(local_filepath, logger=logger)
         # extract sap ids
-
         """
         if document_type is work completion certificate:
             extract sap ids
@@ -245,13 +330,16 @@ def get_entities(file_path, document_type):
         fields = config_manager.get_fields_from_filetype(document_type)
 
         for i, text in enumerate(extracted_texts):
-            if check_page_relevance(page_text=text, fields=fields):
+            if check_page_relevance(page_text=text, fields=fields, logger=logger):
                 relevant_pages.append(i)
-                break
         if not relevant_pages:
             logger.error(f"Provided document {filename} contains no relevant pages.")
             CSVToMongo("dp_status").update_mongo_status(
-                filename=filename, id=mongo_record_id, success=False, start=False
+                filename=filename,
+                process_id=process_id,
+                id=mongo_record_id,
+                success=False,
+                start=False,
             )
             raise Exception("Provided document contains no relevant pages.")
 
@@ -260,9 +348,12 @@ def get_entities(file_path, document_type):
         formattinf_flag = False
 
         for relevant_page in relevant_pages:
-            temp_filename = create_temp_txt_file(extracted_texts[relevant_page])
+            temp_filename = create_temp_txt_file(
+                extracted_texts[relevant_page], logger=logger
+            )
             summarizer = Summarizer(
                 filepath=temp_filename,
+                rerank=llm_module.rerank,
                 pdf_filepath=local_filepath,
                 filetype=document_type,
             )
@@ -271,9 +362,7 @@ def get_entities(file_path, document_type):
                 f.write(csv_text)
             with open(output_csv_filepath, "w+") as f:
                 csv_text = csv_text.strip()
-                csv_text += (
-                    ";" + filename + ";" + datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                )
+                csv_text += f";{filename};{datetime.now().strftime('%Y-%m-%d %H:%M:%S')};{process_id}"
                 f.write(csv_text)
 
             try:
@@ -281,6 +370,7 @@ def get_entities(file_path, document_type):
                 df = pd.read_csv(output_filepath, delimiter=";")
                 df["timestamp"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 df["filename"] = filename
+                df["process_id"] = process_id
                 final_df = pd.concat([final_df, df])
                 logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
                 final_df.to_csv(output_filepath, index=False, sep=";")
@@ -296,9 +386,14 @@ def get_entities(file_path, document_type):
                 filename=filename, raw_text=csv_text_all
             )
             CSVToMongo("dp_status").update_mongo_status(
-                filename=filename, id=mongo_record_id, success=False, start=False
+                filename=filename,
+                process_id=process_id,
+                id=mongo_record_id,
+                success=False,
+                start=False,
             )
-            return ProcessResponse(response="raw text extracted")
+            logger.info("Raw Data Pushed to Mongo! Key Value Mismatch")
+            return csv_text_all
         else:
             # logger.debug(f"Writing final DataFrame to CSV {output_filepath}")
             # final_df.to_csv(output_filepath, index=False, sep=";")
@@ -306,9 +401,15 @@ def get_entities(file_path, document_type):
             # csv_to_mongo = CSVToMongo(document_type)
             # csv_to_mongo.run(output_filepath)
             CSVToMongo("dp_status").update_mongo_status(
-                filename=filename, id=mongo_record_id, success=True, start=False
+                filename=filename,
+                process_id=process_id,
+                id=mongo_record_id,
+                success=True,
+                start=False,
             )
-            return ProcessResponse(response="success", output_filepath=output_filepath)
+            logger.info("Entity extraction completed successfully.")
+
+            return csv_text_all
     except Exception as e:
         logger.error(f"Error in getting entites: {e}")
         return None
@@ -317,6 +418,7 @@ def get_entities(file_path, document_type):
 # Health Check API
 @app.get("/document_processor/api/health")
 async def health_check():
+    logger = logger_instance.configure_logger()
     logger.info("health check request recevied.")
     try:
         logger.info("health check request successful")
@@ -329,38 +431,45 @@ async def health_check():
 
 
 # Raw Data Processing API
-@app.post("/document_processor/api/process_raw_data", response_model=ProcessResponse)
-async def process_raw_data_api(data: Document):
-    try:
-        return process_raw_data(data.file_path)
-    except Exception as e:
-        logger.error(f"Error during health check: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+# @app.post("/document_processor/api/process_raw_data", response_model=ProcessResponse)
+# async def process_raw_data_api(data: Document):
+#     try:
+#         return process_raw_data(data.file_path)
+#     except Exception as e:
+#         logger.error(f"Error during health check: {e}")
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+#         )
 
 
 # Processed Data (Entity Extraction) API
 @app.post("/document_processor/api/get_entities", response_model=ProcessResponse)
-async def get_entities_api(data: Document):
-    try:
-        logger.debug("Starting entity extraction process.")
-        result = get_entities(data.file_path, data.document_type)
-        logger.info("Entity extraction completed successfully.")
-        return result
-    except Exception as e:
-        logger.error("Error occurred during entity extraction: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+async def get_entities_api(data: Document, background_tasks: BackgroundTasks):
+    process_id = generate_unique_process_id()
+    logger = logger_instance.configure_logger(process_id=process_id)
+    logger.debug("Starting entity extraction process.")
+    background_tasks.add_task(
+        get_entities,
+        filepath=data.file_path,
+        document_type=data.document_type,
+        process_id=process_id,
+        logger=logger,
+    )
+    logger.info(
+        f"Starting to process file: {data.file_path} for document type: {data.document_type}, process id: {process_id}"
+    )
+    return ProcessResponse(
+        response="success",
+        message=f"Processing request started succesfully. Can be tracked using process id: {process_id}",
+        process_id=process_id,
+    )
 
 
 # Function to simulate entity extraction (replace with your actual logic)
-def get_entities_from_dir(document_type, document_dir):
+def get_entities_from_dir(document_type, document_dir, process_id, logger):
     logger.debug("Starting to process files in directory: %s", document_dir)
     try:
         document_folder_full_path = os.path.join(INPUT_DATA_DIR, document_dir)
-
         csvs_folder = Path(os.path.join(MODEL_DATA_DIR, "tempCSV"))
         if os.path.exists(csvs_folder):
             shutil.rmtree(csvs_folder)
@@ -369,9 +478,14 @@ def get_entities_from_dir(document_type, document_dir):
         for filename in tqdm(files):
             filepath = os.path.join(document_folder_full_path, filename)
             logger.info("Processing file: %s", filename)
-            result = get_entities(file_path=filepath, document_type=document_type)
+            result = get_entities(
+                filepath=filepath,
+                document_type=document_type,
+                process_id=process_id,
+                logger=logger,
+            )
             try:
-                if type(result) == str:
+                if isinstance(result, str):
                     file_name = document_dir + ".csv"
                     result += (
                         result
@@ -414,7 +528,8 @@ def get_entities_from_dir(document_type, document_dir):
 
         return ProcessResponse(
             response="success",
-            output_filepath=f"Succesfully processed all files in {document_folder_full_path}",
+            message=f"Succesfully processed all files in {document_folder_full_path}",
+            process_id=process_id,
         )
     except Exception as e:
         logger.error(
@@ -428,19 +543,21 @@ def get_entities_from_dir(document_type, document_dir):
 @app.post(
     "/document_processor/api/get_entities_from_dir", response_model=ProcessResponse
 )
-async def get_entities_from_dir_api(data: Document):
-    try:
-        logger.info(
-            f"Starting to process file from directory: {data.document_dir} for document type: {data.document_type}."
-        )
-
-        result = get_entities_from_dir(
-            document_type=data.document_type, document_dir=data.document_dir
-        )
-        logger.info(f"Succesfully processed all files in {data.document_type}")
-        return result
-    except Exception as e:
-        logger.error("Error occurred during file processing: %s", str(e))
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
-        )
+async def get_entities_from_dir_api(data: Document, background_tasks: BackgroundTasks):
+    process_id = generate_unique_process_id()
+    logger = logger_instance.configure_logger(process_id=process_id)
+    logger.info(
+        f"Starting to process file from directory: {data.document_dir} for document type: {data.document_type}, process id: {process_id}"
+    )
+    background_tasks.add_task(
+        get_entities_from_dir,
+        document_dir=data.document_dir,
+        document_type=data.document_type,
+        process_id=process_id,
+        logger=logger,
+    )
+    return ProcessResponse(
+        response="success",
+        message=f"Processing request started succesfully. Can be tracked using process id: {process_id}",
+        process_id=process_id,
+    )
