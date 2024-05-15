@@ -476,6 +476,8 @@ def get_entities_from_dir(document_type, document_dir, process_id, logger):
             os.mkdir(csvs_folder)
         files = os.listdir(Path(document_folder_full_path))
         for filename in tqdm(files):
+            if not filename.endswith(".pdf"):
+                continue
             filepath = os.path.join(document_folder_full_path, filename)
             logger.info("Processing file: %s", filename)
             result = get_entities(
@@ -500,11 +502,13 @@ def get_entities_from_dir(document_type, document_dir, process_id, logger):
                     with open(output_filepath, "w+") as f:
                         f.write(result)
                     logger.info(
-                        "File processed with error, outputs are in csv for the file: %s",
+                        "File processed successfully, outputs are in csv for the file: %s",
                         filename,
                     )
                 else:
-                    logger.info("File processed successfully, %s", filename)
+                    logger.info(
+                        "Error in output format from get_entities, %s", filename
+                    )
             except Exception as e:
                 logger.error(
                     "Error occurred while processing file: %s - %s", filepath, str(e)

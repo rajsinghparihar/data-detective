@@ -162,7 +162,10 @@ class LLMUtils:
 class ConfigManager:
     def __init__(self) -> None:
         logger.debug("Initializing ConfigManager")
-        self.config_filepath = "./temp/config.json"
+        self.models_dir = os.getenv("MODEL_DATA_DIR")
+        self.config_filepath = os.path.join(
+            self.models_dir, "models/configs/config.json"
+        )
         self.config_data = self.read_config()
 
     def read_config(self):
@@ -229,7 +232,10 @@ class ConfigManager:
 class PromptManager:
     def __init__(self, filetype) -> None:
         logger.debug("Initializing PromptManager")
-        self.prompt_config_filepath = "./temp/prompts.json"
+        self.models_dir = os.getenv("MODEL_DATA_DIR")
+        self.prompt_config_filepath = os.path.join(
+            self.models_dir, "models/configs/prompts.json"
+        )
         self.prompts = self.read_config()
         self.filetype = filetype
 
