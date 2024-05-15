@@ -267,7 +267,7 @@ def get_entities(filepath, document_type, process_id, logger):
             except Exception as e:
                 logger.debug(f"Exception: {e}")
                 csv_to_mongo = CSVToMongo(document_type).push_raw_data(
-                    filename=filename, raw_text=csv_text
+                    filename=filename, raw_text=csv_text, process_id=process_id
                 )
                 CSVToMongo("dp_status").update_mongo_status(
                     filename=filename,
