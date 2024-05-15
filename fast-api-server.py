@@ -224,12 +224,12 @@ def check_page_relevance(page_text, fields, logger, thresh=0.2):
 
 def get_entities(filepath, document_type, process_id, logger):
     te = TextExtractor(filepath=filepath)
+    filename = os.path.basename(filepath)
+    mongo_record_id = CSVToMongo("dp_status").update_mongo_status(
+        filename=filename, process_id=process_id, start=True
+    )
     if te.is_file_readable():
         if te.count_pdf_pages() < 15:
-            filename = os.path.basename(filepath)
-            mongo_record_id = CSVToMongo("dp_status").update_mongo_status(
-                filename=filename, process_id=process_id, start=True
-            )
             download_and_save_file(filepath, data_dir, logger=logger)
             summarizer = Summarizer(
                 pdf_filepath=os.path.join(data_dir, "document.pdf"),
@@ -278,6 +278,16 @@ def get_entities(filepath, document_type, process_id, logger):
                 )
                 logger.info("Raw Data Pushed to Mongo! Key Value Mismatch")
             return csv_text
+        else:
+            logger.info("Could not process request as pdf contains more than 15 pages")
+            CSVToMongo("dp_status").update_mongo_status(
+                filename=filename,
+                process_id=process_id,
+                id=mongo_record_id,
+                success=False,
+                start=False,
+            )
+            return ""
     else:
         return get_entities_ocr(
             filepath=filepath,
@@ -513,6 +523,7 @@ def get_entities_from_dir(document_type, document_dir, process_id, logger):
                 logger.error(
                     "Error occurred while processing file: %s - %s", filepath, str(e)
                 )
+                continue
         # Combine all text files into one
         combined_content = []
         for file_name in os.listdir(csvs_folder):

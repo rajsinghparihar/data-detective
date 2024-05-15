@@ -253,9 +253,10 @@ class PromptManager:
             return None
 
     def get_prompt(self) -> str:
-        logger.debug("Getting general prompt")
         if self.filetype == "invoice":
+            logger.debug("Getting invoice prompt")
             return self.prompts["invoice_prompt"]
+        logger.debug("Getting general prompt")
         return self.prompts["general_prompt"]
 
 
@@ -508,11 +509,12 @@ class CSVToMongo:
             self.client.close()
         logger.info("file processing status update to Mongo is successful.")
 
-    def push_raw_data(self, raw_text, filename):
+    def push_raw_data(self, raw_text, filename, process_id):
         data = {
             "raw_text": raw_text,
             "filename": filename,
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "process_id": process_id,
         }
         self.collection.insert_one(data)
         self.client.close()
