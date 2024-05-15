@@ -15,6 +15,7 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 MONGO_URI = os.getenv("MONGO_URI")
+MONGO_DB_NAME = os.getenv('MONGO_DB_NAME')
 
 
 class CustomLogger:
@@ -48,7 +49,7 @@ class CustomLogger:
         mongo_logger = MongoLogger(
             process_id=process_id,
             uri=MONGO_URI,
-            database_name="document-processor-storage",
+            database_name=MONGO_DB_NAME,
             collection_name="dp_logs",
         )
 
