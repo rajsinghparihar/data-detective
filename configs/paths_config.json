@@ -1,0 +1,7 @@
+{
+  "entity_config_filepath": "src/configs/entity_config.json",
+  "prompts_config_filepath": "src/configs/prompts_config.json",
+
+  "extracted_text_filepath": "src/files/intermediate/document.txt",
+  "vendor_info_filepath": "src/files/intermediate/vendor_info.txt"
+}

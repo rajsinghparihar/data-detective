@@ -3,10 +3,9 @@ __pycache__/
 *$py.class
 
 *.zip
-*.pdf
 *.xlsx
 *.png
 *.ipynb
-*.csv
 data/
 .ruff_cache/
+.git

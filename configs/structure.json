@@ -1,0 +1,182 @@
+{
+  "telus": [
+    {
+      "regionType": "bounding-box",
+      "id": "9541310139486421",
+      "centerX": 0.21843309584481774,
+      "centerY": 0.1060767590618337,
+      "width": 0.2329034271152946,
+      "height": 0.01812366737739872,
+      "labels": ["Jio/Reliance Entity Name"],
+      "color": "#ff0000",
+      "text": "Reliance Jio Infocomm Limited"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "8869730114047549",
+      "centerX": 0.5683625083872434,
+      "centerY": 0.26558687065336917,
+      "width": 0.06816863490320291,
+      "height": 0.013392819555705648,
+      "labels": ["Vendor Country"],
+      "color": "#ff0000",
+      "text": "Canada"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "6101941342159052",
+      "centerX": 0.5624112783560116,
+      "centerY": 0.2191305278195152,
+      "width": 0.060594342136180424,
+      "height": 0.01422987077793722,
+      "labels": ["Vendor Name"],
+      "color": "#ff0000",
+      "text": "TELUS"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "8806142352020141",
+      "centerX": 0.4044331720723984,
+      "centerY": 0.4057929503771625,
+      "width": 0.20558794653346907,
+      "height": 0.015903973222400447,
+      "labels": ["Invoice Number"],
+      "color": "#ff0000",
+      "text": "CANTS-INDJP-GSM-2024-02"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "6481553133198674",
+      "centerX": 0.6965844645146966,
+      "centerY": 0.4057929503771625,
+      "width": 0.09521968049971208,
+      "height": 0.015903973222400447,
+      "labels": ["Invoice Date"],
+      "color": "#ff0000",
+      "text": "05-Mar-2024"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "9676059955075031",
+      "centerX": 0.6002827421911242,
+      "centerY": 0.520468967822892,
+      "width": 0.18178302640854116,
+      "height": 0.01255576833347416,
+      "labels": ["Invoice Amount"],
+      "color": "#ff0000",
+      "text": "625"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "07654562966747824",
+      "centerX": 0.7068638618413701,
+      "centerY": 0.5644141569900512,
+      "width": 0.04219963113055425,
+      "height": 0.015066922000169014,
+      "labels": ["Invoice Currency"],
+      "color": "#ff0000",
+      "text": "USD"
+    }
+  ],
+  "zain": [
+    {
+      "regionType": "bounding-box",
+      "id": "7066127315728241",
+      "centerX": 0.7837505151314257,
+      "centerY": 0.09381663113006397,
+      "width": 0.21272150651305288,
+      "height": 0.02132196162046908,
+      "labels": ["Invoice Number"],
+      "color": "#ff0000",
+      "text": "KWTMT/NDJ8/00062"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "1452255543996095",
+      "centerX": 0.761120567630037,
+      "centerY": 0.12100213219616204,
+      "width": 0.15237497984268333,
+      "height": 0.022388059701492533,
+      "labels": ["Invoice Date"],
+      "color": "#ff0000",
+      "text": "023024"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "13538798729489376",
+      "centerX": 0.7060543620433247,
+      "centerY": 0.2052238805970149,
+      "width": 0.29268065435129276,
+      "height": 0.018123667377398706,
+      "labels": ["Jio/Reliance Entity Name"],
+      "color": "#ff0000",
+      "text": "RELIANCE JIO INFOCOMM - JK"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "4626616926480749",
+      "centerX": 0.13577968500833168,
+      "centerY": 0.2052238805970149,
+      "width": 0.18707423267814588,
+      "height": 0.020255863539445612,
+      "labels": ["Vendor Name"],
+      "color": "#ff0000",
+      "text": "ZAIN - KUWAIT"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "473045966474434",
+      "centerX": 0.12597337442439663,
+      "centerY": 0.26705756929637525,
+      "width": 0.16746161151027575,
+      "height": 0.018123667377398733,
+      "labels": ["Vendor Country"],
+      "color": "#ff0000",
+      "text": "DUBAI -UAE"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "187216416241601",
+      "centerX": 0.7218953252942968,
+      "centerY": 0.5634328358208955,
+      "width": 0.06487251617064738,
+      "height": 0.02238805970149249,
+      "labels": ["Invoice Amount"],
+      "color": "#ff0000",
+      "text": "5.58"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "15716093723217428",
+      "centerX": 0.6585314722904086,
+      "centerY": 0.3747334754797441,
+      "width": 0.08297647417175824,
+      "height": 0.028784648187633266,
+      "labels": ["Invoice Currency"],
+      "color": "#ff0000",
+      "text": "SDR"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "5580904199519734",
+      "centerX": 0.8569206787192487,
+      "centerY": 0.3752665245202559,
+      "width": 0.08448513733851748,
+      "height": 0.027718550106609785,
+      "labels": ["Invoice Currency"],
+      "color": "#ff0000",
+      "text": "USD"
+    },
+    {
+      "regionType": "bounding-box",
+      "id": "15500225166375814",
+      "centerX": 0.908215226389063,
+      "centerY": 0.5634328358208955,
+      "width": 0.08448513733851748,
+      "height": 0.028784648187633266,
+      "labels": ["Invoice Amount"],
+      "color": "#ff0000",
+      "text": "7.43"
+    }
+  ]
+}

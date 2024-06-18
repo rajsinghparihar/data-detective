@@ -1,0 +1,66 @@
+{
+    "configs": [
+        {
+            "type": "invoice",
+            "fields": [
+                "Invoice Number",
+                "Invoice Description or Details",
+                "Jio/Reliance Entity Name",
+                "Vendor Name",
+                "Vendor Country",
+                "Invoice Date",
+                "Invoice Amount",
+                "Invoice Currency"
+            ]
+        },
+        {
+            "type": "salaryslip",
+            "fields": [
+                "Bank Name",
+                "Total Earnings",
+                "Total Deductions",
+                "Location",
+                "Special Allowance"
+            ]
+        },
+        {
+            "type": "workcompletioncertificate",
+            "fields": [
+                "Vendor Code",
+                "Work order number"
+            ]
+        },
+        {
+            "type": "mobile_invoice",
+            "fields": [
+                "Customer Name",
+                "Seller Name",
+                "Seller GSTN",
+                "Invoice Number",
+                "Bill Date",
+                "Amount",
+                "Item Name",
+                "IMEI Number"
+            ]
+        },
+        {
+            "type": "bank_statement",
+            "fields": [
+                "Primary Account Number",
+                "Ending Balance",
+                "Statement Date",
+                "Total Deposits",
+                "Withdrawals",
+                "Checks Paid"
+            ]
+        },
+        {
+            "type": "abc",
+            "fields": [
+                "abc",
+                "def",
+                "ghi"
+            ]
+        }
+    ]
+}
