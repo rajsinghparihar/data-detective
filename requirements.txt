@@ -19,3 +19,4 @@ fastapi
 uvicorn[standard]
 python-dotenv
 pymongo
+sentence-transformers

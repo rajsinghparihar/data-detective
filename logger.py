@@ -15,33 +15,44 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 MONGO_URI = os.getenv("MONGO_URI")
-MONGO_DB_NAME = os.getenv('MONGO_DB_NAME')
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME")
 
 
-class CustomLogger:
-    def __init__(self):
+class Logger(object):
+    def __init__(self, logger_name):
         self.logger = None
+        self.logger_name = logger_name
+        self.configure_logger()
 
-    def configure_logger(self, process_id: str = "", log_file_name=None):
+    def __call__(self, func):
+        def wrapper(*args, **kwargs):
+            # Log function call with arguments
+            self.logger.info(
+                f"Calling function: {func.__name__} with args: {args}, kwargs: {kwargs}"
+            )
+            # Call the original function
+            result = func(*args, **kwargs)
+            # Log function return value
+            self.logger.info(f"Function: {func.__name__} returned: {result}")
+            return result
+
+        return wrapper
+
+    def configure_logger(self, process_id: str = ""):
         logs_dir = LOGS_DIR
-        logs_dir.mkdir(
-            parents=True, exist_ok=True
-        )  # Create the directory if it doesn't exist
+        logs_dir.mkdir(parents=True, exist_ok=True)
 
         # Get the file name from the calling module
-        if not log_file_name:
+        if not self.logger_name:
             import inspect
 
             calling_module = inspect.stack()[1].filename
-            log_file_name = Path(
-                calling_module
-            ).stem  # Use the module name as the log file name
+            self.logger_name = Path(calling_module).stem
 
         # Configure the logger
-        self.logger = logging.getLogger(log_file_name)
+        self.logger = logging.getLogger(name=self.logger_name)
         self.logger.setLevel(LOG_LEVEL)
         self.logger.handlers.clear()
-        # self.logger.setLevel(logging.INFO)
 
         formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -51,9 +62,8 @@ class CustomLogger:
             uri=MONGO_URI,
             database_name=MONGO_DB_NAME,
             collection_name="dp_logs",
+            level=LOG_LEVEL,
         )
-
-        # Add the MongoLogger to the root logger
         self.logger.addHandler(mongo_logger)
 
         file_handler = logging.FileHandler(logs_dir / "app.log")

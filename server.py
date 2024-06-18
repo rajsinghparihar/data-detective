@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, status, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
-import os
+
 from api import (
     Summarizer,
     LLMUtils,
@@ -10,25 +10,27 @@ from api import (
     TextExtractor,
 )
 from llama_index import set_global_service_context
-import requests
-import re
+from pdf2image import convert_from_path
 from dotenv import load_dotenv
 from paddleocr import PaddleOCR as ppocr
-from pdf2image import convert_from_path
+from datetime import datetime
+
+from logger import Logger
+from tqdm import tqdm
+from pathlib import Path
+import os
+import requests
+import re
 import numpy as np
 import tempfile
 import pandas as pd
-from datetime import datetime
-from logger import CustomLogger
-from tqdm import tqdm
-from pathlib import Path
 import shutil
 import uuid
 
 load_dotenv(override=True)
-logger_instance = CustomLogger()
-logger_instance.configure_logger()
 
+logger_instance = Logger(__name__)
+logger = logger_instance.logger
 app = FastAPI()
 llm_module = LLMUtils()
 set_global_service_context(service_context=llm_module.service_context)
@@ -428,7 +430,6 @@ def get_entities_ocr(filepath, document_type, process_id, logger):
 # Health Check API
 @app.get("/document_processor/api/health")
 async def health_check():
-    logger = logger_instance.configure_logger()
     logger.info("health check request recevied.")
     try:
         logger.info("health check request successful")

@@ -35,4 +35,4 @@ ENV $(cat .env | xargs)
 # VOLUME ["$MODELS_DIR"]
 
 # Run app.py when the container launches
-CMD ["python", "-m", "uvicorn", "fast-api-server:app", "--reload", "--host", "0.0.0.0", "--port", "8501"]
+CMD ["python", "-m", "uvicorn", "server:app", "--reload", "--host", "0.0.0.0", "--port", "8501"]
