@@ -16,6 +16,7 @@ import pandas as pd
 st.set_page_config(layout="wide")
 load_dotenv(dotenv_path="./src/.env", override=True)
 cm = ConfigManager()
+NO_PROXY = {"no": "pass"}
 
 
 class StreamlitMongoClient:
@@ -41,7 +42,7 @@ class StreamlitMongoClient:
 mongo_status_utils = StreamlitMongoClient(collection_name="dp_status")
 st.session_state["process_id"] = ""
 
-BACKEND_URL = "http://10.169.176.14:8501/"
+BACKEND_URL = "http://localhost:8501/"
 
 
 TEMP_FILES_DIR = cm.INPUT_DIR
@@ -204,6 +205,7 @@ def input_section_fragment():
                             response = requests.post(
                                 BACKEND_URL + "invoice-processing/api/get_entities",
                                 json=request_data,
+                                proxies=NO_PROXY,
                             )
                         else:
                             request_data = {
@@ -214,6 +216,7 @@ def input_section_fragment():
                                 BACKEND_URL
                                 + "invoice-processing/api/get_entities_from_dir",
                                 json=request_data,
+                                proxies=NO_PROXY,
                             )
                         result = response.json()
                         if result.keys().__contains__("detail"):
@@ -327,7 +330,9 @@ def start_service_fragment():
     if start_service_btn:
         with st.status("Starting Service...") as service_status:
             try:
-                response = requests.get(BACKEND_URL + "invoice-processing/api/start")
+                response = requests.get(
+                    BACKEND_URL + "invoice-processing/api/start", proxies=NO_PROXY
+                )
                 service_status.update(
                     label="Service Started Successfully!", state="complete"
                 )
