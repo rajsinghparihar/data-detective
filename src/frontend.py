@@ -41,7 +41,7 @@ class StreamlitMongoClient:
 mongo_status_utils = StreamlitMongoClient(collection_name="dp_status")
 st.session_state["process_id"] = ""
 
-BACKEND_URL = "http://localhost:8501/"
+BACKEND_URL = "http://10.169.176.14:8501/"
 
 
 TEMP_FILES_DIR = cm.INPUT_DIR
