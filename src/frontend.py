@@ -269,20 +269,53 @@ def status_fragment():
             label="Enter the process id of the job or MongoDB query"
         )
 
-        if process_id_or_query:
+        load_btn = st.button("Load", use_container_width=True)
+
+        if load_btn or process_id_or_query:
             if process_id_or_query.startswith("{"):
                 query = json.loads(process_id_or_query)
                 print(query)
                 documents = mongo_status_utils.get_data(
                     query=query, projection={"_id": 0}
                 )
+            elif process_id_or_query.strip() == "" or process_id_or_query is None:
+                documents = mongo_status_utils.get_data(query={}, projection={"_id": 0})
             else:
                 documents = mongo_status_utils.get_data(
                     query={"process_id": process_id_or_query}, projection={"_id": 0}
                 )
-        else:
-            documents = mongo_status_utils.get_data(query={}, projection={"_id": 0})
-        st.dataframe(data=documents, use_container_width=True)
+            df_col, stats_col = st.columns([0.8, 0.2])
+            with df_col:
+                st.header("MongoDB Status")
+                st.dataframe(data=documents, use_container_width=True)
+            with stats_col:
+                st.header("Current Status")
+                get_stats(process_id=process_id_or_query)
+
+
+def get_stats(process_id):
+    num_total_docs = len(glob(f"{TEMP_FILES_DIR}/**/*.pdf", recursive=True))
+    if process_id == "" or process_id is None:
+        num_total_docs = 0
+    processing_docs = mongo_status_utils.get_data(
+        query={"process_id": process_id, "status": "processing"}, projection={"_id": 0}
+    )
+    completed_docs = mongo_status_utils.get_data(
+        query={"process_id": process_id, "status": "completed"}, projection={"_id": 0}
+    )
+    successful_docs = mongo_status_utils.get_data(
+        query={"process_id": process_id, "status": "completed", "success": True},
+        projection={"_id": 0},
+    )
+    num_successful_docs = len([doc for doc in successful_docs])
+    num_completed_docs = len([doc for doc in completed_docs])
+    stats_data = {
+        "Total": num_total_docs,
+        "Extracting": len([doc for doc in processing_docs]),
+        "Fully Extracted": num_successful_docs,
+        "Partially Extracted": num_completed_docs - num_successful_docs,
+    }
+    st.dataframe(data=stats_data, use_container_width=True)
 
 
 @st.experimental_fragment

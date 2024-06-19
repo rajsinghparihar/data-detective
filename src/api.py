@@ -160,7 +160,9 @@ possible issue could be mismatch in document's struct_type and the user provided
                     message=log_msg,
                     process_id=self.process_id,
                 )
-                data = self.utils.break_invoce_string(data)
+                data = self.utils.break_invoce_string(
+                    data
+                )  # specific to invoice type [zain, telus etc.]
                 self.mongo_utils.push_to_mongo(data=[data])
                 self.mongo_status_utils.update_mongo_status(
                     filename=self.document_name,
@@ -186,6 +188,7 @@ possible issue could be mismatch in document's struct_type and the user provided
                     rerank=self.rerank,
                 )
                 data = self.llm_extractor.extract()
+
                 # post process data and push to mongo
                 print(
                     "OCR did not work, unknown struct type, getting output from LLMEntityExtractor: ",
@@ -203,21 +206,42 @@ possible issue could be mismatch in document's struct_type and the user provided
                         process_id=self.process_id,
                     )
                     self.mongo_utils.push_to_mongo(data=[json_data])
-                    self.mongo_status_utils.update_mongo_status(
-                        filename=self.document_name,
-                        process_id=self.process_id,
-                        id=mongo_record_id,
-                        success=True,
-                        start=False,
-                    )
-                    log_msg = f"Processed data pushed to MongoDB for {self.document_name} sucessfully."
-                    self.logger.info(log_msg)
-                    self.mongo_logger.push_log(
-                        level="INFO",
-                        name=str(__name__),
-                        message=log_msg,
-                        process_id=self.process_id,
-                    )
+
+                    # check data sanity if fields are empty then update mongo status, success = False, else go with normal flow
+                    if DataSanityCheck(
+                        data=json_data, process_id=self.process_id
+                    ).run_llm():  # returns true if there are missing values in data
+                        self.mongo_status_utils.update_mongo_status(
+                            filename=self.document_name,
+                            process_id=self.process_id,
+                            id=mongo_record_id,
+                            success=False,
+                            start=False,
+                        )
+                        log_msg = f"Partially Processed data pushed to MongoDB for {self.document_name}."
+                        self.logger.info(log_msg)
+                        self.mongo_logger.push_log(
+                            level="INFO",
+                            name=str(__name__),
+                            message=log_msg,
+                            process_id=self.process_id,
+                        )
+                    else:
+                        self.mongo_status_utils.update_mongo_status(
+                            filename=self.document_name,
+                            process_id=self.process_id,
+                            id=mongo_record_id,
+                            success=True,
+                            start=False,
+                        )
+                        log_msg = f"Processed data pushed to MongoDB for {self.document_name} sucessfully."
+                        self.logger.info(log_msg)
+                        self.mongo_logger.push_log(
+                            level="INFO",
+                            name=str(__name__),
+                            message=log_msg,
+                            process_id=self.process_id,
+                        )
                 except Exception as e:
                     print("Error in utils.replace_keys: ", e)
                     self.mongo_status_utils.update_mongo_status(
@@ -235,7 +259,6 @@ possible issue could be mismatch in document's struct_type and the user provided
                         message=log_msg,
                         process_id=self.process_id,
                     )
-
         else:
             # call LLMEntityExtractor (since struct_type is empty means that it was never passed)
             self.llm_extractor = LLMEntityExtractor(
@@ -258,22 +281,42 @@ possible issue could be mismatch in document's struct_type and the user provided
                     filename=self.document_name,
                     process_id=self.process_id,
                 )
-                self.mongo_status_utils.update_mongo_status(
-                    filename=self.document_name,
-                    process_id=self.process_id,
-                    id=mongo_record_id,
-                    success=True,
-                    start=False,
-                )
-                log_msg = f"Processed data pushed to MongoDB for {self.document_name} sucessfully."
-                self.logger.info(log_msg)
-                self.mongo_logger.push_log(
-                    level="INFO",
-                    name=str(__name__),
-                    message=log_msg,
-                    process_id=self.process_id,
-                )
                 self.mongo_utils.push_to_mongo(data=[json_data])
+
+                if DataSanityCheck(
+                    data=json_data, process_id=self.process_id
+                ).run_llm():  # returns true if there are missing values in data
+                    self.mongo_status_utils.update_mongo_status(
+                        filename=self.document_name,
+                        process_id=self.process_id,
+                        id=mongo_record_id,
+                        success=False,
+                        start=False,
+                    )
+                    log_msg = f"Partially Processed data pushed to MongoDB for {self.document_name}."
+                    self.logger.info(log_msg)
+                    self.mongo_logger.push_log(
+                        level="INFO",
+                        name=str(__name__),
+                        message=log_msg,
+                        process_id=self.process_id,
+                    )
+                else:
+                    self.mongo_status_utils.update_mongo_status(
+                        filename=self.document_name,
+                        process_id=self.process_id,
+                        id=mongo_record_id,
+                        success=True,
+                        start=False,
+                    )
+                    log_msg = f"Processed data pushed to MongoDB for {self.document_name} sucessfully."
+                    self.logger.info(log_msg)
+                    self.mongo_logger.push_log(
+                        level="INFO",
+                        name=str(__name__),
+                        message=log_msg,
+                        process_id=self.process_id,
+                    )
             except Exception as e:
                 print("Error in utils.replace_keys: ", e)
                 self.mongo_status_utils.update_mongo_status(

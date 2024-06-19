@@ -220,6 +220,12 @@ class DataSanityCheck:
             process_id=self.process_id,
         )
 
+    def contains_missing_value(self):
+        for k, v in self.data.items():
+            if v == "" or v is None:
+                return True
+        return False
+
     def is_not_missing_value(self):
         log_msg = "Running missing value sanity check..."
         self.logger.debug(log_msg)
@@ -297,3 +303,7 @@ class DataSanityCheck:
             process_id=self.process_id,
         )
         return True
+
+    def run_llm(self):
+        # works differently than the above run function
+        return self.contains_missing_value()

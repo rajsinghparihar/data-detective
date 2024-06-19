@@ -19,7 +19,7 @@ import fitz
 import numpy as np
 from typing import List, Optional
 import tabula
-# from unstructured.partition.pdf import partition_pdf
+from unstructured.partition.pdf import partition_pdf
 
 
 class TextExtractor:
@@ -35,7 +35,7 @@ class TextExtractor:
             rec_model_dir=os.path.join(self.cm.MODELS_DIR, "ocr/rec/"),
             cls_model_dir=os.path.join(self.cm.MODELS_DIR, "ocr/cls/"),
         )
-        # self.pdf_elements = partition_pdf(self._filepath, strategy="hi_res")
+        self.pdf_elements = partition_pdf(self._filepath, strategy="hi_res")
 
     def is_file_readable(self):
         total_words = 0
@@ -268,15 +268,15 @@ class LLMEntityExtractor(RAG):
         if self.document_type == "mobile_invoice":
             # iterative entity extraction
             filepaths = []
-            # unstructured_extracted_textfile = self.utils.create_temp_txt_file(
-            #     "\n\n".join(
-            #         [str(element) for element in self.text_extractor.pdf_elements]
-            #     )
-            # )
+            unstructured_extracted_textfile = self.utils.create_temp_txt_file(
+                "\n\n".join(
+                    [str(element) for element in self.text_extractor.pdf_elements]
+                )
+            )
             ppocr_extracted_textfile = self.utils.create_temp_txt_file(
                 "\n\n".join([text for text in extracted_texts])
             )
-            # filepaths.append(unstructured_extracted_textfile)
+            filepaths.append(unstructured_extracted_textfile)
             filepaths.append(ppocr_extracted_textfile)
         else:
             relevant_pages = self.text_extractor.get_relevant_pages(
