@@ -10,7 +10,7 @@ if [ -z "$python_env" ]; then
     echo "In local"
     export $(cat ./src/.env | xargs)
     echo "Running FastAPI Server in LOCAL environment..."
-    uvicorn src.app:app --reload --port="$PORT" --host=0.0.0.0
+    streamlit run src/frontend.py --server.port=7860 && uvicorn src.app:app --reload --port="$PORT" --host=0.0.0.0 
 else
     # Your existing code to set environment variables based on python_env
     if [ "$python_env" = "$dev" ]; then

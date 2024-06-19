@@ -6,6 +6,7 @@ from src.utils import Utils, DataSanityCheck
 from src.text_ext_ocr import OCREntityExtractor
 from typing import Optional
 import copy
+from glob import glob
 
 from src.logger import MongoLogWriter, CustomLogger
 
@@ -300,10 +301,10 @@ possible issue could be mismatch in document's struct_type and the user provided
             message=log_msg,
             process_id=self.process_id,
         )
-        for filename in os.listdir(self.document_dir):
-            if not filename.endswith(".pdf"):
+        files = glob(f"{self.document_dir}/**/*.pdf", recursive=True)
+        for filepath in files:
+            if not filepath.endswith(".pdf"):
                 continue
-            filepath = os.path.join(self.document_dir, filename)
             try:
                 self.get_entities(document_path=filepath)
             except Exception as e:

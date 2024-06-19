@@ -9,6 +9,7 @@ from llama_index.llms.llama_utils import (
 from src.config import ConfigManager
 from typing import Optional
 from src.logger import CustomLogger
+import multiprocessing
 
 
 class LLMUtils:
@@ -55,7 +56,10 @@ class LLMUtils:
                 max_new_tokens=max_tokens,
                 context_window=context_window,
                 generate_kwargs={},
-                model_kwargs={"n_gpu_layers": n_gpu_layers},
+                model_kwargs={
+                    "n_gpu_layers": n_gpu_layers,
+                    "n_threads": multiprocessing.cpu_count(),
+                },
                 messages_to_prompt=messages_to_prompt,
                 completion_to_prompt=completion_to_prompt,
                 verbose=True,
