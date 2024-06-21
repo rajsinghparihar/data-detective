@@ -128,7 +128,7 @@ class ConfigManagerMongo:
     def create_inital_config(self):
         # Read the .env file and create a dictionary
         env_vars = {}
-        env_path = os.path.join("./src/.env." + os.getenv("python_env", "local"))
+        env_path = os.path.join("./src/.env")  # TODO: Fix this for non local envs
         with open(env_path, "r") as f:
             for line in f:
                 res = line.strip().split("=")
@@ -142,7 +142,7 @@ class ConfigManagerMongo:
         self.collection.insert_one(env_vars)
 
     def create_inital_struct_config(self):
-        filepath = "configs/structure-old.json"
+        filepath = "configs/structure.json"
         with open(filepath, "r") as file:
             config_data = json.load(file)
         self.update_structure_config(data=config_data)

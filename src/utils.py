@@ -201,8 +201,9 @@ class Utils:
 
 
 class DataSanityCheck:
-    def __init__(self, data: dict, process_id: str) -> None:
+    def __init__(self, data: dict, fields: list[str], process_id: str) -> None:
         self.data = data
+        self.fields = fields
         self.process_id = process_id
         self.cm = ConfigManager()
         self.logger = CustomLogger(__name__).logger
@@ -225,6 +226,13 @@ class DataSanityCheck:
             if v == "" or v is None:
                 return True
         return False
+
+    def is_empty(self):
+        return self.data == {} or self.data is None
+
+    def contains_incomplete_data(self):
+        keys = self.data.keys()
+        return len(keys) < len(self.fields)
 
     def is_not_missing_value(self):
         log_msg = "Running missing value sanity check..."
@@ -306,4 +314,8 @@ class DataSanityCheck:
 
     def run_llm(self):
         # works differently than the above run function
-        return self.contains_missing_value()
+        return (
+            self.contains_missing_value()
+            or self.is_empty()
+            or self.contains_incomplete_data()
+        )

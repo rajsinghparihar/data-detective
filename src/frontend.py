@@ -11,6 +11,8 @@ from glob import glob
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 import pandas as pd
+from datetime import datetime
+from streamlit_modal import Modal
 
 
 st.set_page_config(layout="wide")
@@ -42,7 +44,7 @@ class StreamlitMongoClient:
 mongo_status_utils = StreamlitMongoClient(collection_name="dp_status")
 st.session_state["process_id"] = ""
 
-BACKEND_URL = "http://localhost:8501/"
+BACKEND_URL = "http://0.0.0.0:8501/"
 
 
 TEMP_FILES_DIR = cm.INPUT_DIR
@@ -321,10 +323,35 @@ def get_stats(process_id):
     st.dataframe(data=stats_data, use_container_width=True)
 
 
+service_termination_modal = Modal(
+    "Confirmation",
+    key="confirm-termination",
+)
+
+
+@st.experimental_fragment
+def terminate_service_fragment():
+    if st.button("Stop Service", type="primary", use_container_width=True):
+        service_termination_modal.open()
+
+    if service_termination_modal.is_open():
+        with service_termination_modal.container():
+            st.write("Do you really, want to terminate the current Job?")
+            if st.button("Yes, I'm sure.", type="primary"):
+                with st.status("Terminating Service...") as service_termination_status:
+                    with open("src/restart_log.py", "w+") as restart_log:
+                        restart_log.write(
+                            f"""# Service Terminated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"""
+                        )
+                    service_termination_status.update(
+                        label="Service Terminated.", state="complete"
+                    )
+
+
 @st.experimental_fragment
 def start_service_fragment():
     start_service_btn = st.button(
-        "Start Service", type=st.session_state.get("submit_btn_type", "primary")
+        "Start Service", type="secondary", use_container_width=True
     )
 
     if start_service_btn:
@@ -347,7 +374,11 @@ def start_service_fragment():
 
 
 st.title("Document Processor")
-start_service_fragment()
+start_service_col, terminate_service_col = st.columns(2)
+with start_service_col:
+    start_service_fragment()
+with terminate_service_col:
+    terminate_service_fragment()
 
 input_section, status_section, output_section = st.tabs(
     ["Input Section", "Status", "Output Section"]

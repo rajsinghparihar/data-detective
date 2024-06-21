@@ -117,8 +117,7 @@ class ExtractionAPI:
                 # if output is from ocr extractor, keys may increase e.g. invoice_amount_2, currency_2 etc.
                 # so we don't try to replace them using the replace keys function
                 if not DataSanityCheck(
-                    data=data,
-                    process_id=self.process_id,
+                    data=data, process_id=self.process_id, fields=self.fields
                 ).run():
                     log_msg = f"""Entity extraction for {self.document_name} and struct_type {self.struct_type} failed. Some Data Sanity Checks did not pass, 
 possible issue could be mismatch in document's struct_type and the user provided struct_type passed in request"""
@@ -209,8 +208,8 @@ possible issue could be mismatch in document's struct_type and the user provided
 
                     # check data sanity if fields are empty then update mongo status, success = False, else go with normal flow
                     if DataSanityCheck(
-                        data=json_data, process_id=self.process_id
-                    ).run_llm():  # returns true if there are missing values in data
+                        data=json_data, process_id=self.process_id, fields=self.fields
+                    ).run_llm():  # returns true if there are missing values or data is empty or data has less keys than corresponding entities.
                         self.mongo_status_utils.update_mongo_status(
                             filename=self.document_name,
                             process_id=self.process_id,
