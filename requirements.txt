@@ -22,3 +22,4 @@ pdfminer.six
 unstructured[all-docs]
 streamlit-pdf-viewer
 streamlit-modal
+jdeskew
