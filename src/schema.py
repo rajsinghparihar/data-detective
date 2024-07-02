@@ -19,6 +19,7 @@ class InputSchema(BaseModel):
     document_type: str
     document_dir: Optional[str] = ""
     struct_type: Optional[str] = ""
+    use_trocr: Optional[bool] = False
 
 
 class OutputSchema(BaseModel):

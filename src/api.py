@@ -37,6 +37,7 @@ class ExtractionAPI:
         struct_type: Optional[str] = "",
         document_path: Optional[str] = "",
         document_dir: Optional[str] = "",
+        use_trocr: Optional[bool] = False,
     ):
         self.process_id = self.utils.generate_unique_process_id()
         self.logger = self.logger_instance.configure_logger()
@@ -52,6 +53,7 @@ class ExtractionAPI:
         self.document_dir = document_dir
         self.document_type = document_type
         self.struct_type = struct_type
+        self.use_trocr = use_trocr
 
         self.fields = self.config_manager.get_fields_from_filetype(
             filetype=self.document_type
@@ -87,22 +89,9 @@ class ExtractionAPI:
         mongo_record_id = self.mongo_status_utils.update_mongo_status(
             filename=self.document_name, process_id=self.process_id, start=True
         )
-        if self.struct_type != "":
-            """
-            - get data, flag from ocr_extractor
-            - data should be in json format 
-            - e.g. {
-                "Document Number": "BGDGP-INDJO-2024-03-00001-INV-24-03", 
-                "Total Invoice Due Amount": "5.65", 
-                "Amount Currency": "USD", 
-                "Invoice Description or Details": "Invoice for Roaming Traffic", 
-                "Jio/Reliance Entity Name": "Reliance Jio Infocomm Limited", 
-                "Vendor Name": "GrameenPhone Ltd", 
-                "Vendor Country": "Bangladesh", 
-                "Invoice Date": "10.04.2024"
-            }
-            - [ DEPRECIATED ] e.g. "INV-1234;1200;USD;Desc" or "Invoice Number;Amount;Currency;Description\nINV-1234;1200;USD;Desc"
-            """
+        if (
+            self.struct_type != ""
+        ):  # struct_type passed in request -> filetype is invoice. run ocr entity extractor
             self.ocr_extractor = OCREntityExtractor(
                 document_path=self.document_path,
                 document_type=self.document_type,
@@ -185,6 +174,7 @@ possible issue could be mismatch in document's struct_type and the user provided
                     filepath=self.document_path,
                     filetype=self.document_type,
                     rerank=self.rerank,
+                    use_trocr=self.use_trocr,
                 )
                 data = self.llm_extractor.extract()
 
@@ -264,6 +254,7 @@ possible issue could be mismatch in document's struct_type and the user provided
                 filepath=self.document_path,
                 filetype=self.document_type,
                 rerank=self.rerank,
+                use_trocr=self.use_trocr,
             )
             data = self.llm_extractor.extract()
             # post process data and push to mongo
@@ -283,7 +274,7 @@ possible issue could be mismatch in document's struct_type and the user provided
                 self.mongo_utils.push_to_mongo(data=[json_data])
 
                 if DataSanityCheck(
-                    data=json_data, process_id=self.process_id
+                    data=json_data, process_id=self.process_id, fields=self.fields
                 ).run_llm():  # returns true if there are missing values in data
                     self.mongo_status_utils.update_mongo_status(
                         filename=self.document_name,

@@ -19,11 +19,14 @@ class PromptManager:
 def general_prompt(fields):
     """
     You are an entity extractor.
-    Using the information in the provided documents,
-    What are the values of the following, {{ fields }}?
-    Please format the response in JSON format, with these descriptors as keys and their values as values.
-    In the records, make sure to only include the values of the descriptors without any descriptor names.
-    Avoid keywords like <<SYS>> or [SYS] or [INST] in the final response.
+    Using the information in the provided documents, use your deep understanding of documents and complete the following tasks.
+    1. Answer the question, What are the values of the following, {{ fields }}?
+    2. Print the answers against each field in a step by step approach.
+    3. After you have all the answers ready, Please format the response in JSON format, with these fields as keys and their answers as values.
+
+    Make sure to follow the Instructions below.
+    1. In the records, make sure to include the values of the descriptors without any descriptor names.
+    2. Avoid keywords like <<SYS>> or [SYS] or [INST] in the final response.
     """
 
 
@@ -73,6 +76,13 @@ def mobile_invoice_prompt(fields):
 
     2. Based on the result of the previous task, please combine the outputs and format the final output in JSON format with the following Instructions.
 
+    Some Additional Info to help get the information more accurately:
+    1. Seller Name is usually found in the start of the document, The seller could be a company or an individual.
+    2. Item Name is the name of the product sold. It could be a smartphone so check for strings that look like smartphone model names.
+    3. IMEI Number should be a 15 Digit Number.
+    4. The Seller GSTN should be a 15 Character Alpha-Numeric String.
+
+    Final Instructions:
     In the output, make sure to include ONLY the values of the given 8 descriptors.
     The final response should contain the valid JSON response, Each value in the JSON response should be a single value. AVOID keywords like <<SYS>> or [SYS] or [INST] in the final response.
 

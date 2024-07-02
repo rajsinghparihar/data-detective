@@ -135,7 +135,9 @@ async def get_entities_api(data: InputSchema, background_tasks: BackgroundTasks)
             document_type=data.document_type,
             struct_type=data.struct_type,
             document_path=data.document_path,
+            use_trocr=data.use_trocr,
         )
+        print("DEBUG:: ", data.use_trocr, type(data.use_trocr))
         logger = logger_instance.configure_logger()
         document_name = os.path.basename(data.document_path)
         logger.info(
@@ -176,6 +178,7 @@ async def get_entities_from_dir_api(
             document_type=data.document_type,
             struct_type=data.struct_type,
             document_dir=data.document_dir,
+            use_trocr=data.use_trocr,
         )
         logger = logger_instance.configure_logger()
         logger.info(

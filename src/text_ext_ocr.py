@@ -30,9 +30,9 @@ class OCREntityExtractor:
         )
         self.structure_config = self.cm.structure_config
         self.ppocr_instance = PaddleOCR(
-            use_angle_cls=False,
+            use_angle_cls=True,
             det=False,
-            cls=False,
+            cls=True,
             lang="en",
             use_gpu=True,
             verbose=False,

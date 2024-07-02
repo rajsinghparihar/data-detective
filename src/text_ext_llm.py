@@ -19,11 +19,15 @@ import fitz
 import numpy as np
 from typing import List, Optional
 import tabula
+from transformers import TrOCRProcessor, VisionEncoderDecoderModel
+import cv2
+from jdeskew.estimator import get_angle
+from jdeskew.utility import rotate
 # from unstructured.partition.pdf import partition_pdf
 
 
 class TextExtractor:
-    def __init__(self, filepath) -> None:
+    def __init__(self, filepath, use_trocr: Optional[bool] = False) -> None:
         self._filepath = filepath
         self.cm = ConfigManager()
         self.ppocr_obj = ppocr(
@@ -34,7 +38,20 @@ class TextExtractor:
             det_model_dir=os.path.join(self.cm.MODELS_DIR, "ocr/det/"),
             rec_model_dir=os.path.join(self.cm.MODELS_DIR, "ocr/rec/"),
             cls_model_dir=os.path.join(self.cm.MODELS_DIR, "ocr/cls/"),
+            use_space_char=True,
         )
+        self.use_trocr = use_trocr
+        self.trocr_model = None
+        self.trocr_processor = None
+
+        if use_trocr:
+            self.trocr_processor = TrOCRProcessor.from_pretrained(
+                "microsoft/trocr-large-printed"
+            )
+            self.trocr_model = VisionEncoderDecoderModel.from_pretrained(
+                "microsoft/trocr-large-printed"
+            )
+            self.trocr_model.config.eos_token_id = 2
         # self.pdf_elements = partition_pdf(self._filepath, strategy="hi_res")
 
     def is_file_readable(self):
@@ -44,7 +61,7 @@ class TextExtractor:
             text = page.get_text()
             total_words += len(text.split())
 
-        if total_words < 100:
+        if total_words < 10:
             return False
         return True
 
@@ -82,6 +99,39 @@ class TextExtractor:
         )
         return address_info
 
+    def get_texts_trocr(self, image, boxes):
+        def model_inference(input_image):
+            pixel_values = self.trocr_processor(
+                input_image, return_tensors="pt"
+            ).pixel_values
+            generated_ids = self.trocr_model.generate(pixel_values)
+            generated_text = self.trocr_processor.batch_decode(
+                generated_ids, skip_special_tokens=True
+            )[0]
+
+            return generated_text
+
+        box = np.array(boxes).astype(np.int32).reshape(-1, 2)
+
+        height = image.shape[0]
+        width = image.shape[1]
+
+        mask = np.zeros((height, width), dtype=np.uint8)
+        new_list = boxes.copy()
+
+        text = ""
+        for boxs in new_list:
+            box = np.array(boxs).astype(np.int32).reshape(-1, 2)
+            points = np.array([box])
+            cv2.fillPoly(mask, points, (255))
+            res = cv2.bitwise_and(image, image, mask=mask)
+            rect = cv2.boundingRect(points)  # returns (x,y,w,h) of the rect
+            cropped = res[rect[1] : rect[1] + rect[3], rect[0] : rect[0] + rect[2]]
+            text += model_inference(input_image=cropped)
+            text += "\n"
+
+        return text
+
     def extract_and_save_txt(self, filetype_keyword: str):
         """
         - filetype_keyword: str
@@ -92,7 +142,7 @@ class TextExtractor:
         text_file = open(self._text_filepath, "w+")
         if not self.is_file_readable():
             ocr_text = []
-            pages = convert_from_path(self._filepath)
+            pages = convert_from_path(self._filepath, dpi=400)
             for page in pages:
                 image = np.array(page)
                 result = self.ppocr_obj.ocr(img=image, cls=True)[0]
@@ -116,6 +166,33 @@ class TextExtractor:
         with open(self._header_filepath, "w+") as header_file:
             header_file.write(header_text.strip())
 
+    def autocrop(self, image: np.array, thresh=0.05):
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        binary = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 51, 15
+        )
+        for start in range(0, binary.shape[1], 2):
+            row = binary[:, start : start + 2] < 127
+            if np.sum(row) >= thresh * len(row[0]) * len(
+                row
+            ):  # > 5% of the pixels are black
+                print("start: ", start)
+                break
+        for end in range(binary.shape[1] - 2, 0, -2):
+            row = binary[:, end : end + 2] < 127
+            if np.sum(row) >= thresh * len(row[0]) * len(
+                row
+            ):  # > 5% of the pixels are black
+                print("end: ", end)
+                break
+
+        border = binary.shape[1] // 20
+        start = max(0, start - border)
+        end = min(binary.shape[1], end + border)
+        if image is not None:
+            return image[:, start:end]
+        return binary[:, start:end]
+
     def extract_page_texts(self):
         """
         Checks if a PDF is readable and extracts text.
@@ -125,16 +202,29 @@ class TextExtractor:
             list: A list containing extracted text from each page, [].
         """
         extracted_text = []
-        ocr = self.ppocr_obj
         try:
-            pages = convert_from_path(self._filepath)
+            pages = convert_from_path(self._filepath, dpi=400)
             # Use PaddleOCR for scanned images
             for page in pages:
+                # crop page to only include the text and remove additional whitespaces
                 image = np.array(page)
-                result = ocr.ocr(img=image, cls=True)[0]
-                if result:
-                    text = "\n".join([line[1][0] for line in result])
-                    extracted_text.append(text)
+                cropped_image = self.autocrop(image=image)
+                # remove skew
+                angle = get_angle(cropped_image)
+                cropped_image = rotate(cropped_image, angle)
+                result = self.ppocr_obj.ocr(
+                    img=cropped_image, rec=True, det=True, cls=False, bin=True
+                )[0]
+                boxes = [line[0] for line in result]
+                paddleocr_text = "\n".join([line[1][0] for line in result])
+                print(self.use_trocr)
+                if self.use_trocr is True:
+                    print("Using TrOCR")
+                    trocr_text = self.get_texts_trocr(image=cropped_image, boxes=boxes)
+                    extracted_text.append(trocr_text)
+                else:
+                    print("Using PaddleOCR")
+                    extracted_text.append(paddleocr_text)
         except Exception as e:
             print(f"Error opening PDF: {e}")
             return []
@@ -212,21 +302,22 @@ class RAG:
             self.query_engine = self.index.as_query_engine(
                 response_mode="tree_summarize",
                 use_async=True,
-                streaming=False,
+                streaming=True,
                 similarity_top_k=10,
             )
         else:
             self.query_engine = self.index.as_query_engine(
                 response_mode="tree_summarize",
                 use_async=True,
-                streaming=False,
+                streaming=True,
                 similarity_top_k=10,
                 node_postprocessors=[rerank],
             )
 
     def run_query_engine(self, prompt):
         response = self.query_engine.query(prompt)
-        return response.response
+        response.print_response_stream()
+        return str(response)
 
 
 class LLMEntityExtractor(RAG):
@@ -235,11 +326,14 @@ class LLMEntityExtractor(RAG):
         rerank: Optional[SentenceTransformerRerank] = None,
         filepath: Optional[str] = "",
         filetype: Optional[str] = "",
+        use_trocr: Optional[bool] = False,
     ) -> None:
         self.rerank = rerank
         filetype = filetype.lower()
         self.document_path = filepath
         self.document_type = filetype
+        self.use_trocr = use_trocr
+        print(self.use_trocr, use_trocr)
 
         # initialize the RAG Module
         super().__init__(filepaths=[self.document_path], rerank=self.rerank)
@@ -263,7 +357,9 @@ class LLMEntityExtractor(RAG):
 
     def non_readable_extract(self):
         if not self.text_extractor:
-            self.text_extractor = TextExtractor(self.document_path)
+            self.text_extractor = TextExtractor(
+                self.document_path, use_trocr=self.use_trocr
+            )
         extracted_texts = self.text_extractor.extract_page_texts()
         if self.document_type == "mobile_invoice":
             # iterative entity extraction
@@ -305,7 +401,9 @@ class LLMEntityExtractor(RAG):
         )
         local_filepath = os.path.join(self.cm.OUTPUT_DIR, filename)
         if not self.text_extractor:
-            self.text_extractor = TextExtractor(filepath=local_filepath)
+            self.text_extractor = TextExtractor(
+                filepath=local_filepath, use_trocr=self.use_trocr
+            )
 
         # Creating prompt based on document_type
         if self.document_type == "invoice":
