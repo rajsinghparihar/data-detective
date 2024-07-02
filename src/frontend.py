@@ -170,6 +170,7 @@ def input_section_fragment():
                 mode = st.radio(
                     label="Mode", options=["Single", "Batch"], horizontal=True
                 )
+                use_trocr = st.checkbox("Use TrOCR")
                 mongo_utils = StreamlitMongoClient(collection_name=filetype)
                 if filetype:
                     st.write(
@@ -201,8 +202,7 @@ def input_section_fragment():
                             request_data = {
                                 "document_type": filetype,
                                 "document_path": filepath,
-                                "document_dir": "",
-                                "struct_type": "",
+                                "use_trocr": use_trocr,
                             }
                             response = requests.post(
                                 BACKEND_URL + "invoice-processing/api/get_entities",
@@ -213,6 +213,7 @@ def input_section_fragment():
                             request_data = {
                                 "document_type": filetype,
                                 "document_dir": TEMP_FILES_DIR,
+                                "use_trocr": use_trocr,
                             }
                             response = requests.post(
                                 BACKEND_URL
