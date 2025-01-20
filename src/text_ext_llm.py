@@ -8,6 +8,7 @@ from src.prompts import (
     general_prompt,
     invoice_prompt,
     mobile_invoice_prompt,
+    quotation_prompt,
 )
 from src.config import ConfigManager
 from src.utils import Utils
@@ -23,7 +24,7 @@ from transformers import TrOCRProcessor, VisionEncoderDecoderModel
 import cv2
 from jdeskew.estimator import get_angle
 from jdeskew.utility import rotate
-# from unstructured.partition.pdf import partition_pdf
+from unstructured.partition.pdf import partition_pdf
 
 
 class TextExtractor:
@@ -52,11 +53,15 @@ class TextExtractor:
                 "microsoft/trocr-large-printed"
             )
             self.trocr_model.config.eos_token_id = 2
-        # self.pdf_elements = partition_pdf(self._filepath, strategy="hi_res")
+        self.pdf_elements = partition_pdf(self._filepath, strategy="hi_res")
 
     def is_file_readable(self):
         total_words = 0
-        doc = fitz.open(self._filepath)
+        try:
+            doc = fitz.open(self._filepath)
+        except Exception as e:
+            print("Could not open file: Corrupt or Empty file", e)
+            return None
         for page in doc:
             text = page.get_text()
             total_words += len(text.split())
@@ -231,7 +236,7 @@ class TextExtractor:
 
         return extracted_text
 
-    def check_page_relevance(self, page_text, fields, thresh=0.15):
+    def check_page_relevance(self, page_text, fields, thresh=0.05):
         page_text_list = page_text.lower().split()
         page_text_set = set(page_text_list)
         keywords_list = []
@@ -417,11 +422,14 @@ class LLMEntityExtractor(RAG):
         elif self.document_type == "mobile_invoice":
             print("Getting mobile invoice prompt")
             self.prompt = mobile_invoice_prompt(fields=self.fields)
+        elif self.document_type == "quotation":
+            print("Getting quotation prompt")
+            self.prompt = quotation_prompt(fields=self.fields)
         else:
             print("Getting general prompt")
             self.prompt = general_prompt(fields=self.fields)
 
-        if self.text_extractor.is_file_readable():
+        if self.text_extractor.is_file_readable() is True:
             if self.text_extractor.count_pdf_pages() < 15:
                 print("File is readable")
                 print("Extracting entities")
@@ -429,9 +437,12 @@ class LLMEntityExtractor(RAG):
             else:
                 print("File has a lot of pages! Choosing not to process.")
                 llm_response = ""
-        else:
+        elif self.text_extractor.is_file_readable() is False:
             # extract texts, get relevant texts and save to txt file and run rag again
             print("File is not readable, Using OCR Based Text Extraction")
             llm_response = self.non_readable_extract()
+        else:  # returns None
+            print("Could Not Process File")
+            llm_response = ""
 
         return llm_response

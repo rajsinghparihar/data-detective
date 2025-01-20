@@ -4,13 +4,7 @@
             "type": "invoice",
             "fields": [
                 "Invoice Number",
-                "Invoice Description or Details",
-                "Jio/Reliance Entity Name",
-                "Vendor Name",
-                "Vendor Country",
-                "Invoice Date",
-                "Invoice Amount",
-                "Invoice Currency"
+                "Invoice Date"
             ]
         },
         {
@@ -57,9 +51,31 @@
         {
             "type": "abc",
             "fields": [
-                "abc",
                 "def",
                 "ghi"
+            ]
+        },
+        {
+            "type": "doctype001",
+            "fields": [
+                "account number",
+                "name",
+                "adhaar number",
+                "address",
+                "father's name"
+            ]
+        },
+        {
+            "type": "quotation",
+            "fields": [
+                "offer_reference_number",
+                "payment_terms",
+                "delivery_terms",
+                "vendor_delivery_date",
+                "total_amount",
+                "currency",
+                "offer_validity_period",
+                "gst_number"
             ]
         }
     ]

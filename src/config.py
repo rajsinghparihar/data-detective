@@ -9,7 +9,7 @@ class ConfigManager:
     def __init__(self) -> None:
         self.PYTHON_ENV = os.getenv("python_env", "local")
         self.structure_mongo_cm = ConfigManagerMongo(collection_name="dp_vendors")
-        self.mongo_cm = ConfigManagerMongo(collection_name="dp_config")
+        self.mongo_cm = ConfigManagerMongo(collection_name="dp_config_2")
         self.config = self.get_base_config()
         self.SRC_FILES_DIR = self.config.get("SRC_FILES_DIR")
         self.DATA_DIR = self.config.get("DATA_DIR")

@@ -98,3 +98,38 @@ def mobile_invoice_prompt(fields):
         'IMEI Number': '<IMEI-number>'
     }
     """
+
+
+@outlines.prompt
+def quotation_prompt(fields):
+    """
+    You are an entity extractor. Using the information in the provided document,
+    Complete the given tasks:
+
+    1. What are the values of the following, {{ fields }}? Answer for each of the fields one by one step by step.
+
+    2. Based on the result of the previous task, please combine the outputs and format the final output in JSON format with the following Instructions.
+
+    Some Additional Info to help get the information more accurately:
+    1. offer_reference_number is a.k.a. quotation number or enquiry number, it is the identifier for the quotation.
+    2. payment_terms is a.k.a. terms of delivery or in general it is the agreed terms of delivery for the quotation.
+    3. delivery_terms means the location of inspection or if it's not mentioned then leave it.
+    4. The gst_number should be a 15 Character Alpha-Numeric String.
+    5. If any field is unavailable, the value in the json output must be "Not Found"
+
+    Final Instructions:
+    In the output, make sure to include ONLY the values of the given 8 descriptors.
+    The final response should contain the valid JSON response, Each value in the JSON response should be a single value. AVOID keywords like <<SYS>> or [SYS] or [INST] in the final response.
+
+    Here is an example of the expected output:
+    {
+        'offer_reference_number': '<offer-reference-number>',
+        'payment_terms': '<payment-terms>',
+        'delivery_terms': '<delivery-terms>',
+        'vendor_delivery_date': '<vendor-delivery-date>',
+        'offer_validity_period': '<offer-validity-period>',
+        'currency': '<currency>',
+        'gst_number': '<gst-number>',
+        'total_amount': '<total-amount>'
+    }
+    """

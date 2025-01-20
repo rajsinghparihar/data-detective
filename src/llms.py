@@ -26,7 +26,9 @@ class LLMUtils:
             "Loading Embedding Model, Model Name: %s", self.cm.EMBEDDING_MODEL_NAME
         )
         self._embed_model = HuggingFaceEmbedding(
-            model_name=self.cm.EMBEDDING_MODEL_PATH, trust_remote_code=True
+            model_name=self.cm.EMBEDDING_MODEL_PATH,
+            trust_remote_code=True,
+            max_length=512,
         )
         self.service_context = ServiceContext.from_defaults(
             llm=self._llm,
